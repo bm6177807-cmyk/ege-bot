@@ -1437,10 +1437,7 @@ async def unknown_message(message: Message, state: FSMContext):
     elif current_state in (Form.feedback.state, Form.reminder_set.state, Form.free_question.state, Form.exam_date_input.state, Form.reaction_query.state):
         await message.answer("✏️ Пожалуйста, следуй инструкциям или нажми «❌ Отмена».", reply_markup=kb_cancel())
     else:
-        await message.answer("🤔 Я не понимаю эту команду. Используй кнопки или /help.", reply_markup=kb_main())ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
-PREMIUM_PRICE = 300  # Telegram Stars
-
-client = OpenAI(base_url="https://polza.ai/api/v1", api_key=POLZA_API_KEY) if POLZA_API_KEY else None
+        await message.answer("🤔 Я не понимаю эту команду. Используй кнопки или /help.", reply_markup=kb_main())
 
 # ========== СОСТОЯНИЯ FSM ==========
 class Form(StatesGroup):
