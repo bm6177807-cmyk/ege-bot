@@ -19,3 +19,8 @@ class Form(StatesGroup):
     level_test = State()
     reaction_query = State()
     gift_user_input = State()  # для ввода ID получателя подарка
+    # ─── инструменты предметов ───
+    tool_geo_quiz = State()    # тренажёр «Страна–столица»
+    tool_hist_cards = State()  # карточки дат
+    tool_info_input = State()  # ввод числа для перевода систем счисления
+    tool_bio_input = State()   # ввод генотипов для решётки Пеннета

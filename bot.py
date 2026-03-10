@@ -27,6 +27,7 @@ from handlers import (
     referral_router,
     adaptive_router,
     daily_challenge_router,
+    tools_router,
 )
 from handlers.profile import _give_referral_bonus, subject_name
 
@@ -63,6 +64,7 @@ dp.include_router(repetition_router)
 dp.include_router(referral_router)
 dp.include_router(adaptive_router)
 dp.include_router(daily_challenge_router)
+dp.include_router(tools_router)
 
 
 def _verify_yoomoney_signature(data: dict, secret: str) -> bool:

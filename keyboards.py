@@ -21,6 +21,9 @@ def kb_cancel():
     )
 
 # ========== ПРЕДМЕТЫ И ТЕМЫ ==========
+# Предметы, у которых есть раздел «🧰 Инструменты»
+_TOOL_SUBJECTS = {"math", "physics", "geography", "history", "informatics", "biology"}
+
 def kb_subjects():
     display_names = {
         "chemistry": "Химия 🧪",
@@ -53,6 +56,8 @@ def kb_subject_menu(subj: str):
     if subj == "chemistry":
         buttons.append([InlineKeyboardButton(text="⚗️ Справочник реакций", callback_data=f"subj_reactions_{subj}")])
         buttons.append([InlineKeyboardButton(text="🧪 Таблица Менделеева", callback_data=f"subj_mendeleev_{subj}")])
+    if subj in _TOOL_SUBJECTS:
+        buttons.append([InlineKeyboardButton(text="🧰 Инструменты", callback_data=f"tool_{subj}")])
     buttons.append([InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
