@@ -42,7 +42,7 @@ SUBJECT_NAMES = {
 }
 
 
-def _subject_name(key: str) -> str:
+def subject_name(key: str) -> str:
     return SUBJECT_NAMES.get(key, key.capitalize())
 
 
@@ -52,7 +52,7 @@ def _build_yoomoney_url(order_id: str, subject: str, days: int) -> str:
     params = {
         "receiver": YOOMONEY_RECEIVER,
         "quickpay-form": "shop",
-        "targets": f"Премиум {_subject_name(subject)} {days} дней",
+        "targets": f"Премиум {subject_name(subject)} {days} дней",
         "sum": str(amount),
         "label": order_id,
         "successURL": success_url,
@@ -119,10 +119,14 @@ async def referral_link(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     count = db.get_referral_count(user_id)
     bonuses = db.get_referral_bonus(user_id)
-    link = f"https://t.me/{BOT_USERNAME}?start={user_id}" if BOT_USERNAME else "(BOT_USERNAME не задан)"
+    if BOT_USERNAME:
+        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+        link_text = f"`{link}`"
+    else:
+        link_text = "_(ссылка недоступна: BOT\\_USERNAME не задан в настройках)_"
     text = (
         "📨 **Пригласить друга**\n\n"
-        f"Твоя реферальная ссылка:\n`{link}`\n\n"
+        f"Твоя реферальная ссылка:\n{link_text}\n\n"
         "Как это работает:\n"
         "• Друг, перешедший по ссылке, получает **+1 день** на все предметы.\n"
         "• Ты получаешь **+3 дня** на все предметы после первой покупки друга.\n\n"
@@ -140,7 +144,7 @@ async def referral_link(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "gift_menu")
 async def gift_menu(callback: CallbackQuery, state: FSMContext):
     buttons = [
-        [InlineKeyboardButton(text=_subject_name(k), callback_data=f"gift_subject_{k}")]
+        [InlineKeyboardButton(text=subject_name(k), callback_data=f"gift_subject_{k}")]
         for k in TASKS.keys()
     ]
     buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_profile")])
@@ -351,7 +355,7 @@ async def show_premium_menu_callback(callback: CallbackQuery, state: FSMContext)
 
 async def _send_premium_subject_menu(target: Message):
     buttons = [
-        [InlineKeyboardButton(text=_subject_name(k), callback_data=f"buy_subject_premium_{k}")]
+        [InlineKeyboardButton(text=subject_name(k), callback_data=f"buy_subject_premium_{k}")]
         for k in TASKS.keys()
     ]
     buttons.append([InlineKeyboardButton(text="← Назад в профиль", callback_data="back_to_profile")])
@@ -365,7 +369,7 @@ async def _send_premium_subject_menu(target: Message):
 @router.callback_query(F.data.startswith("buy_subject_premium_"))
 async def buy_subject_premium(callback: CallbackQuery, state: FSMContext):
     subject = callback.data[len("buy_subject_premium_"):]
-    name = _subject_name(subject)
+    name = subject_name(subject)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text=f"1 месяц  — ⭐ {STARS_PRICES[30]} / 💳 {YOOMONEY_PRICES[30]} ₽",
@@ -392,10 +396,11 @@ async def buy_subject_premium(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("pay_subject_"))
 async def pay_subject_method(callback: CallbackQuery, state: FSMContext):
     """Show payment method selection (Stars vs YooMoney)."""
-    parts = callback.data.split("_")
-    subject = parts[2]
-    days = int(parts[3])
-    name = _subject_name(subject)
+    # Format: pay_subject_<subject>_<days>  — split from the right
+    remainder = callback.data[len("pay_subject_"):]
+    subject, days_str = remainder.rsplit("_", 1)
+    days = int(days_str)
+    name = subject_name(subject)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text=f"⭐ Telegram Stars — {STARS_PRICES[days]} ⭐",
@@ -418,10 +423,10 @@ async def pay_subject_method(callback: CallbackQuery, state: FSMContext):
 # ===== TELEGRAM STARS =====
 @router.callback_query(F.data.startswith("pay_stars_"))
 async def pay_stars(callback: CallbackQuery, state: FSMContext, bot: Bot):
-    parts = callback.data.split("_")
-    subject = parts[2]
-    days = int(parts[3])
-    name = _subject_name(subject)
+    remainder = callback.data[len("pay_stars_"):]
+    subject, days_str = remainder.rsplit("_", 1)
+    days = int(days_str)
+    name = subject_name(subject)
     stars = STARS_PRICES[days]
     await bot.send_invoice(
         chat_id=callback.from_user.id,
@@ -451,7 +456,7 @@ async def handle_successful_payment(message: Message, bot: Bot):
         return
 
     expires = db.set_subject_premium(message.from_user.id, subject, days)
-    name = _subject_name(subject)
+    name = subject_name(subject)
     await message.answer(
         f"✅ Оплата через Telegram Stars прошла успешно!\n"
         f"Премиум на **{name}** активирован на {days} дней (до {expires}).",
@@ -463,10 +468,10 @@ async def handle_successful_payment(message: Message, bot: Bot):
 # ===== YOOMONEY =====
 @router.callback_query(F.data.startswith("pay_yoomoney_"))
 async def pay_yoomoney(callback: CallbackQuery, state: FSMContext):
-    parts = callback.data.split("_")
-    subject = parts[2]
-    days = int(parts[3])
-    name = _subject_name(subject)
+    remainder = callback.data[len("pay_yoomoney_"):]
+    subject, days_str = remainder.rsplit("_", 1)
+    days = int(days_str)
+    name = subject_name(subject)
     amount = YOOMONEY_PRICES[days]
     order_id = str(uuid.uuid4())
     db.save_pending_payment(order_id, callback.from_user.id, subject, days)

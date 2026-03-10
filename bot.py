@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import hmac
 import logging
 import os
@@ -27,7 +28,7 @@ from handlers import (
     adaptive_router,
     daily_challenge_router,
 )
-from handlers.profile import _give_referral_bonus
+from handlers.profile import _give_referral_bonus, subject_name
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -64,29 +65,55 @@ dp.include_router(adaptive_router)
 dp.include_router(daily_challenge_router)
 
 
+def _verify_yoomoney_signature(data: dict, secret: str) -> bool:
+    """Verify YooMoney HTTP-notification SHA-1 signature.
+
+    YooMoney computes:
+        sha1(notification_type&operation_id&amount&currency&datetime&sender&codepro&secret_key&label)
+    """
+    string_to_hash = "&".join([
+        data.get("notification_type", ""),
+        data.get("operation_id", ""),
+        data.get("amount", ""),
+        data.get("currency", ""),
+        data.get("datetime", ""),
+        data.get("sender", ""),
+        data.get("codepro", ""),
+        secret,
+        data.get("label", ""),
+    ])
+    expected = hashlib.sha1(string_to_hash.encode("utf-8")).hexdigest()
+    received = data.get("sha1_hash", "")
+    return hmac.compare_digest(expected, received)
+
+
 # ========== ВЕБ-СЕРВЕР ==========
 async def handle_health(request):
     return web.Response(text="OK", status=200)
 
 
 async def handle_root(request):
-    return web.Response(text="<html><body><h1>Бот работает</h1></body></html>",
-                        content_type="text/html", status=200)
+    return web.Response(
+        text="<html><body><h1>Бот работает</h1></body></html>",
+        content_type="text/html",
+        status=200,
+    )
 
 
 async def handle_yoomoney_webhook(request):
-    """YooMoney HTTP-notification webhook."""
+    """YooMoney HTTP-notification webhook with SHA-1 signature verification."""
     try:
-        # Simple secret verification via request header
-        req_secret = request.headers.get("X-Yoomoney-Secret", "")
-        if YOOMONEY_WEBHOOK_SECRET and not hmac.compare_digest(
-            YOOMONEY_WEBHOOK_SECRET, req_secret
-        ):
-            logger.warning("YooMoney webhook: invalid secret")
-            return web.Response(text="Forbidden", status=403)
+        data = dict(await request.post())
+        logger.info(f"YooMoney webhook received: notification_type={data.get('notification_type')}, label={data.get('label')}")
 
-        # YooMoney sends application/x-www-form-urlencoded
-        data = await request.post()
+        # Verify signature when a secret is configured
+        if YOOMONEY_WEBHOOK_SECRET:
+            if not _verify_yoomoney_signature(data, YOOMONEY_WEBHOOK_SECRET):
+                logger.warning("YooMoney webhook: invalid SHA-1 signature")
+                return web.Response(text="Forbidden", status=403)
+        else:
+            logger.warning("YOOMONEY_WEBHOOK_SECRET is not set — skipping signature check")
+
         label = data.get("label", "")
         unaccepted = data.get("unaccepted", "true")
 
@@ -97,9 +124,8 @@ async def handle_yoomoney_webhook(request):
                     payment["user_id"], payment["subject"], payment["days"]
                 )
                 await _give_referral_bonus(bot, payment["user_id"])
+                name = subject_name(payment["subject"])
                 try:
-                    from handlers.profile import _subject_name
-                    name = _subject_name(payment["subject"])
                     await bot.send_message(
                         payment["user_id"],
                         f"✅ Оплата через YooMoney прошла успешно!\n"

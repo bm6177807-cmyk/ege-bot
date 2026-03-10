@@ -36,11 +36,20 @@
 После деплоя настрой уведомления в личном кабинете YooMoney:
 
 - **URL**: `https://<твой-домен>/yoomoney-webhook`
-- **Метод**: POST
-- **Заголовок**: `X-Yoomoney-Secret: <YOOMONEY_WEBHOOK_SECRET>`
+- **Метод**: POST (уведомления о зачислении денег)
 
-> Если YooMoney не поддерживает кастомные заголовки, оставь `YOOMONEY_WEBHOOK_SECRET` пустым —
-> тогда webhook-эндпоинт будет принимать все запросы без проверки секрета.
+### Проверка подписи (рекомендуется)
+
+YooMoney подписывает уведомления SHA-1 хешем. Для проверки:
+
+1. Зайди в кабинет YooMoney → Настройки → Уведомления.
+2. Укажи "Секретное слово" (notification password).
+3. Запиши это слово в `YOOMONEY_WEBHOOK_SECRET`.
+
+Бот автоматически проверяет подпись:  
+`sha1(notification_type&operation_id&amount&currency&datetime&sender&codepro&**secret**&label)`
+
+Если `YOOMONEY_WEBHOOK_SECRET` не задан, подпись не проверяется (не рекомендуется для продакшена).
 
 ## Цены
 
