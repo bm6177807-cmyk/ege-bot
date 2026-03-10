@@ -1,7 +1,7 @@
 # handlers/profile.py
 import re
 import os
-from datetime import datetime, timedelta
+import logging
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
@@ -12,9 +12,13 @@ from keyboards import kb_profile_menu, kb_cancel, kb_main
 from .states import Form
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
-PREMIUM_PRICE = 300  # Telegram Stars за месяц для одного предмета (можно изменить)
+
+# Subscription prices
+STARS_PRICES = {30: 300, 90: 750, 180: 1200}
+PRICES_RUB = {30: 300, 90: 750, 180: 1200}
 
 # ========== МЕНЮ ПРОФИЛЯ ==========
 @router.message(F.text == "📊 Профиль")
@@ -297,14 +301,93 @@ async def buy_subject_premium(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 @router.callback_query(F.data.startswith("pay_subject_"))
-async def pay_subject(callback: CallbackQuery, state: FSMContext):
+async def pay_subject_choose_method(callback: CallbackQuery) -> None:
+    """Show payment method selection — Stars or YooMoney."""
     parts = callback.data.split("_")
+    if len(parts) != 4:
+        await callback.answer("❌ Некорректные данные", show_alert=True)
+        return
     subject = parts[2]
-    days = int(parts[3])
-    # Здесь должна быть логика оплаты через Telegram Stars
-    expires = db.set_subject_premium(callback.from_user.id, subject, days)
-    await callback.message.edit_text(f"✅ Премиум на предмет {subject} активирован на {days} дней! (до {expires})")
+    try:
+        days = int(parts[3])
+    except ValueError:
+        await callback.answer("❌ Некорректный срок подписки", show_alert=True)
+        return
+
+    stars = STARS_PRICES.get(days)
+    rubles = PRICES_RUB.get(days)
+    if stars is None or rubles is None:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"⭐ Telegram Stars ({stars} ⭐)", callback_data=f"pay_stars_{subject}_{days}")],
+        [InlineKeyboardButton(text=f"💳 ЮMoney ({rubles} ₽)", callback_data=f"pay_yoomoney_{subject}_{days}")],
+        [InlineKeyboardButton(text="← Назад", callback_data=f"buy_subject_premium_{subject}")],
+    ])
+    await callback.message.edit_text(
+        f"💳 <b>Выбери способ оплаты</b>\n\nПредмет: <b>{subject}</b>\nСрок: <b>{days} дней</b>",
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("pay_stars_"))
+async def pay_subject_stars(callback: CallbackQuery) -> None:
+    """Send a Telegram Stars invoice for subject premium."""
+    parts = callback.data.split("_")
+    if len(parts) != 4:
+        await callback.answer("❌ Некорректные данные", show_alert=True)
+        return
+    subject = parts[2]
+    try:
+        days = int(parts[3])
+    except ValueError:
+        await callback.answer("❌ Некорректный срок подписки", show_alert=True)
+        return
+
+    stars = STARS_PRICES.get(days)
+    if stars is None:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+
+    await callback.bot.send_invoice(
+        chat_id=callback.from_user.id,
+        title=f"Премиум — {subject}",
+        description=f"Предметный премиум: {subject} на {days} дней",
+        payload=f"subject_premium:{subject}:{days}",
+        provider_token="",  # Empty string for Telegram Stars
+        currency="XTR",
+        prices=[LabeledPrice(label=f"Премиум {subject} {days} дней", amount=stars)],
+    )
+    await callback.answer()
+
+
+@router.pre_checkout_query()
+async def handle_pre_checkout(query: PreCheckoutQuery) -> None:
+    """Auto-approve all Telegram Stars pre-checkout queries."""
+    await query.answer(ok=True)
+
+
+@router.message(F.successful_payment)
+async def handle_successful_payment(message: Message) -> None:
+    """Activate subject premium after a successful Telegram Stars payment."""
+    payload = message.successful_payment.invoice_payload
+    try:
+        _, subject, days_str = payload.split(":")
+        days = int(days_str)
+    except (ValueError, AttributeError):
+        logger.error("Invalid Stars payment payload: %s", payload)
+        await message.answer("✅ Оплата получена, но не удалось определить подписку. Свяжитесь с поддержкой.")
+        return
+
+    expires = db.set_subject_premium(message.from_user.id, subject, days)
+    await message.answer(
+        f"✅ <b>Оплата прошла успешно!</b>\n\n"
+        f"Предметный премиум <b>{subject}</b> активирован на {days} дней (до {expires}).",
+        parse_mode="HTML",
+    )
 
 # ========== ОБРАБОТЧИК ВОЗВРАТА ==========
 @router.callback_query(F.data == "back_to_profile")
