@@ -60,15 +60,27 @@ dp.include_router(adaptive_router)
 dp.include_router(daily_challenge_router)
 dp.include_router(lava_router)
 
+# ========== ВЕБ-СЕРВЕР ==========
 async def handle_health(request):
+    """Health check для Render (без мета-тегов)"""
     return web.Response(text="OK", status=200)
 
 async def handle_root(request):
-    return web.Response(text="Бот работает", status=200)
+    """Главная страница с мета-тегом для LAVA (исправленный)"""
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta name="lava-verify" content="bc80577c07a158d1">
+</head>
+<body>
+    <h1>Бот работает</h1>
+</body>
+</html>"""
+    return web.Response(text=html_content, content_type="text/html", status=200)
 
-# Эндпоинт для верификации домена LAVA
-async def handle_lava_verification(request):
-    # Возвращаем текст, предоставленный LAVA для подтверждения домена
+# Эндпоинты для верификации через файл
+async def handle_lava_verify_file(request):
+    """Возвращает текст верификации для файлового подтверждения (как в DNS)"""
     return web.Response(text="lava-verify=bc80577c07a158d1", status=200)
 
 async def handle_lava_webhook(request):
@@ -106,8 +118,13 @@ async def run_web_server():
     app.router.add_get('/health', handle_health)
     app.router.add_get('/healthcheck', handle_health)
     app.router.add_get('/', handle_root)
-    # Эндпоинты для LAVA
-    app.router.add_get('/lava-verification.txt', handle_lava_verification)
+
+    # Все возможные имена файлов для верификации
+    app.router.add_get('/lava-verify.txt', handle_lava_verify_file)
+    app.router.add_get('/lava-verify.html', handle_lava_verify_file)
+    app.router.add_get('/lava-verification.txt', handle_lava_verify_file)
+    app.router.add_get('/bc80577c07a158d1.txt', handle_lava_verify_file)  # если LAVA ожидает имя = код
+
     app.router.add_post('/lava-webhook', handle_lava_webhook)
     runner = web.AppRunner(app)
     await runner.setup()
