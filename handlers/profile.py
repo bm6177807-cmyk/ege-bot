@@ -285,25 +285,25 @@ async def show_premium_menu_callback(callback: CallbackQuery, state: FSMContext)
 async def buy_subject_premium(callback: CallbackQuery, state: FSMContext):
     subject = callback.data.split("_")[3]
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="1 месяц - 300 ⭐", callback_data=f"pay_subject_{subject}_30")],
-        [InlineKeyboardButton(text="3 месяца - 750 ⭐", callback_data=f"pay_subject_{subject}_90")],
-        [InlineKeyboardButton(text="6 месяцев - 1200 ⭐", callback_data=f"pay_subject_{subject}_180")],
-        [InlineKeyboardButton(text="← Назад", callback_data="premium")]
+        [
+            InlineKeyboardButton(text="1 мес — LAVA (300 ₽)", callback_data=f"pay_subject_{subject}_30"),
+            InlineKeyboardButton(text="1 мес — ЮMoney (300 ₽)", callback_data=f"pay_yoomoney_{subject}_30"),
+        ],
+        [
+            InlineKeyboardButton(text="3 мес — LAVA (750 ₽)", callback_data=f"pay_subject_{subject}_90"),
+            InlineKeyboardButton(text="3 мес — ЮMoney (750 ₽)", callback_data=f"pay_yoomoney_{subject}_90"),
+        ],
+        [
+            InlineKeyboardButton(text="6 мес — LAVA (1200 ₽)", callback_data=f"pay_subject_{subject}_180"),
+            InlineKeyboardButton(text="6 мес — ЮMoney (1200 ₽)", callback_data=f"pay_yoomoney_{subject}_180"),
+        ],
+        [InlineKeyboardButton(text="← Назад", callback_data="premium")],
     ])
     await callback.message.edit_text(
-        f"🌟 **Покупка премиума по предмету {subject}**\n\nВыбери срок подписки:",
-        reply_markup=kb
+        f"🌟 **Покупка премиума по предмету {subject}**\n\n"
+        f"Выбери срок и способ оплаты (LAVA или ЮMoney):",
+        reply_markup=kb,
     )
-    await callback.answer()
-
-@router.callback_query(F.data.startswith("pay_subject_"))
-async def pay_subject(callback: CallbackQuery, state: FSMContext):
-    parts = callback.data.split("_")
-    subject = parts[2]
-    days = int(parts[3])
-    # Здесь должна быть логика оплаты через Telegram Stars
-    expires = db.set_subject_premium(callback.from_user.id, subject, days)
-    await callback.message.edit_text(f"✅ Премиум на предмет {subject} активирован на {days} дней! (до {expires})")
     await callback.answer()
 
 # ========== ОБРАБОТЧИК ВОЗВРАТА ==========

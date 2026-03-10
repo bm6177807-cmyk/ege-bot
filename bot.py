@@ -26,7 +26,9 @@ from handlers import (
     adaptive_router,
     daily_challenge_router,
     lava_router,
+    yoomoney_router,
 )
+import handlers.yoomoney as yoomoney_handlers
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -59,6 +61,7 @@ dp.include_router(referral_router)
 dp.include_router(adaptive_router)
 dp.include_router(daily_challenge_router)
 dp.include_router(lava_router)
+dp.include_router(yoomoney_router)
 
 # ========== ВЕБ-СЕРВЕР ==========
 async def handle_health(request):
@@ -126,6 +129,7 @@ async def run_web_server():
     app.router.add_get('/bc80577c07a158d1.txt', handle_lava_verify_file)  # если LAVA ожидает имя = код
 
     app.router.add_post('/lava-webhook', handle_lava_webhook)
+    app.router.add_post('/yoomoney-webhook', yoomoney_handlers.handle_yoomoney_webhook)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 10000)
