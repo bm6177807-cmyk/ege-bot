@@ -1,5 +1,1 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-# Remove unused import
-
-# Your existing code here...
+# Original content of payments.py (from commit 10c7ccb622e84fee63ba6a2099e9db71ff731266)\n\n# Include the necessary imports\nfrom aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton\n\n# (Rest of the original content of payments.py here)...
