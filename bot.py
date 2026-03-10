@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import hmac
 import logging
 import os
 from datetime import datetime
@@ -25,8 +27,8 @@ from handlers import (
     referral_router,
     adaptive_router,
     daily_challenge_router,
-    lava_router,
 )
+from handlers.profile import _give_referral_bonus, subject_name
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -36,6 +38,9 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN не найден в .env")
+
+YOOMONEY_WEBHOOK_SECRET = os.getenv("YOOMONEY_WEBHOOK_SECRET", "")
+PORT = int(os.getenv("PORT", "10000"))
 
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
@@ -58,79 +63,97 @@ dp.include_router(repetition_router)
 dp.include_router(referral_router)
 dp.include_router(adaptive_router)
 dp.include_router(daily_challenge_router)
-dp.include_router(lava_router)
+
+
+def _verify_yoomoney_signature(data: dict, secret: str) -> bool:
+    """Verify YooMoney HTTP-notification SHA-1 signature.
+
+    YooMoney computes:
+        sha1(notification_type&operation_id&amount&currency&datetime&sender&codepro&secret_key&label)
+    """
+    string_to_hash = "&".join([
+        data.get("notification_type", ""),
+        data.get("operation_id", ""),
+        data.get("amount", ""),
+        data.get("currency", ""),
+        data.get("datetime", ""),
+        data.get("sender", ""),
+        data.get("codepro", ""),
+        secret,
+        data.get("label", ""),
+    ])
+    expected = hashlib.sha1(string_to_hash.encode("utf-8")).hexdigest()
+    received = data.get("sha1_hash", "")
+    return hmac.compare_digest(expected, received)
+
 
 # ========== ВЕБ-СЕРВЕР ==========
 async def handle_health(request):
-    """Health check для Render (без мета-тегов)"""
     return web.Response(text="OK", status=200)
 
+
 async def handle_root(request):
-    """Главная страница с мета-тегом для LAVA (исправленный)"""
-    html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta name="lava-verify" content="bc80577c07a158d1">
-</head>
-<body>
-    <h1>Бот работает</h1>
-</body>
-</html>"""
-    return web.Response(text=html_content, content_type="text/html", status=200)
+    return web.Response(
+        text="<html><body><h1>Бот работает</h1></body></html>",
+        content_type="text/html",
+        status=200,
+    )
 
-# Эндпоинты для верификации через файл
-async def handle_lava_verify_file(request):
-    """Возвращает текст верификации для файлового подтверждения (как в DNS)"""
-    return web.Response(text="lava-verify=bc80577c07a158d1", status=200)
 
-async def handle_lava_webhook(request):
+async def handle_yoomoney_webhook(request):
+    """YooMoney HTTP-notification webhook with SHA-1 signature verification."""
     try:
-        data = await request.json()
-        logger.info(f"LAVA webhook received: {data}")
+        data = dict(await request.post())
+        logger.info(f"YooMoney webhook received: notification_type={data.get('notification_type')}, label={data.get('label')}")
 
-        # Здесь должна быть проверка подписи (по документации LAVA)
+        # Verify signature when a secret is configured
+        if YOOMONEY_WEBHOOK_SECRET:
+            if not _verify_yoomoney_signature(data, YOOMONEY_WEBHOOK_SECRET):
+                logger.warning("YooMoney webhook: invalid SHA-1 signature")
+                return web.Response(text="Forbidden", status=403)
+        else:
+            logger.warning("YOOMONEY_WEBHOOK_SECRET is not set — skipping signature check")
 
-        if data.get("status") == "success" or data.get("status") == "paid":
-            order_id = data.get("order_id")
-            payment = db.get_pending_payment(order_id)
+        label = data.get("label", "")
+        unaccepted = data.get("unaccepted", "true")
+
+        if label and unaccepted == "false":
+            payment = db.get_pending_payment(label)
             if payment:
                 expires = db.set_subject_premium(
-                    payment["user_id"],
-                    payment["subject"],
-                    payment["days"]
+                    payment["user_id"], payment["subject"], payment["days"]
                 )
+                await _give_referral_bonus(bot, payment["user_id"])
+                name = subject_name(payment["subject"])
                 try:
                     await bot.send_message(
                         payment["user_id"],
-                        f"✅ Оплата прошла успешно!\n"
-                        f"Премиум на предмет {payment['subject']} активирован на {payment['days']} дней (до {expires})."
+                        f"✅ Оплата через YooMoney прошла успешно!\n"
+                        f"Премиум на **{name}** активирован на {payment['days']} дней (до {expires}).",
+                        parse_mode="Markdown",
                     )
                 except Exception as e:
                     logger.error(f"Не удалось уведомить пользователя {payment['user_id']}: {e}")
-                db.delete_pending_payment(order_id)
+                db.delete_pending_payment(label)
+
         return web.Response(text="OK", status=200)
     except Exception as e:
-        logger.exception(f"Webhook error: {e}")
+        logger.exception(f"YooMoney webhook error: {e}")
         return web.Response(text="Error", status=500)
+
 
 async def run_web_server():
     app = web.Application()
-    app.router.add_get('/health', handle_health)
-    app.router.add_get('/healthcheck', handle_health)
-    app.router.add_get('/', handle_root)
-
-    # Все возможные имена файлов для верификации
-    app.router.add_get('/lava-verify.txt', handle_lava_verify_file)
-    app.router.add_get('/lava-verify.html', handle_lava_verify_file)
-    app.router.add_get('/lava-verification.txt', handle_lava_verify_file)
-    app.router.add_get('/bc80577c07a158d1.txt', handle_lava_verify_file)  # если LAVA ожидает имя = код
-
-    app.router.add_post('/lava-webhook', handle_lava_webhook)
+    app.router.add_get("/health", handle_health)
+    app.router.add_get("/healthcheck", handle_health)
+    app.router.add_get("/", handle_root)
+    app.router.add_post("/yoomoney-webhook", handle_yoomoney_webhook)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 10000)
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    logger.info("✅ Web server started on port 10000")
+    logger.info(f"✅ Web server started on port {PORT}")
+
 
 async def reminder_worker():
     while True:
@@ -144,11 +167,13 @@ async def reminder_worker():
                     logger.error(f"Не удалось отправить напоминание пользователю {user_id}: {e}")
         await asyncio.sleep(60)
 
+
 async def main():
     asyncio.create_task(run_web_server())
     asyncio.create_task(reminder_worker())
     logger.info("🚀 Бот запущен")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+
 
 if __name__ == "__main__":
     asyncio.run(main())

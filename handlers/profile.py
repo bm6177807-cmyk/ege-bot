@@ -1,9 +1,15 @@
 # handlers/profile.py
 import re
 import os
+import uuid
+import urllib.parse
+import logging
 from datetime import datetime, timedelta
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Router, F, Bot
+from aiogram.types import (
+    Message, CallbackQuery, LabeledPrice, PreCheckoutQuery,
+    InlineKeyboardMarkup, InlineKeyboardButton
+)
 from aiogram.fsm.context import FSMContext
 
 import database as db
@@ -12,9 +18,65 @@ from keyboards import kb_profile_menu, kb_cancel, kb_main
 from .states import Form
 
 router = Router()
+logger = logging.getLogger(__name__)
 
-ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
-PREMIUM_PRICE = 300  # Telegram Stars за месяц для одного предмета (можно изменить)
+ADMIN_IDS = [int(i) for i in os.getenv("ADMIN_IDS", "").split(",") if i]
+BOT_USERNAME = os.getenv("BOT_USERNAME", "")
+YOOMONEY_RECEIVER = os.getenv("YOOMONEY_RECEIVER", "")
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
+
+STARS_PRICES = {30: 300, 90: 750, 180: 1200}
+YOOMONEY_PRICES = {30: 200, 90: 500, 180: 900}
+
+SUBJECT_NAMES = {
+    "chemistry": "Химия 🧪",
+    "biology": "Биология 🌿",
+    "math": "Математика 📐",
+    "physics": "Физика ⚡",
+    "informatics": "Информатика 💻",
+    "history": "История 📜",
+    "geography": "География 🌍",
+    "social": "Обществознание 🏛️",
+    "literature": "Литература 📖",
+    "russian": "Русский язык 🇷🇺",
+}
+
+
+def subject_name(key: str) -> str:
+    return SUBJECT_NAMES.get(key, key.capitalize())
+
+
+def _build_yoomoney_url(order_id: str, subject: str, days: int) -> str:
+    amount = YOOMONEY_PRICES[days]
+    success_url = PUBLIC_BASE_URL or f"https://t.me/{BOT_USERNAME}"
+    params = {
+        "receiver": YOOMONEY_RECEIVER,
+        "quickpay-form": "shop",
+        "targets": f"Премиум {subject_name(subject)} {days} дней",
+        "sum": str(amount),
+        "label": order_id,
+        "successURL": success_url,
+    }
+    return "https://yoomoney.ru/quickpay/shop.xml?" + urllib.parse.urlencode(params)
+
+
+async def _give_referral_bonus(bot: Bot, user_id: int):
+    """Give +3 days on all subjects to referrer after first purchase by referred user."""
+    ref = db.get_referrer_for_user(user_id)
+    if ref and ref["premium_bonus_given"] == 0:
+        referrer_id = ref["referrer_id"]
+        for subj in TASKS.keys():
+            db.set_subject_premium(referrer_id, subj, 3)
+        db.mark_referral_bonus_given(user_id)
+        try:
+            await bot.send_message(
+                referrer_id,
+                "🎉 Твой друг совершил первую покупку!\n"
+                "Тебе начислен бонус: +3 дня на все предметы.",
+            )
+        except Exception as e:
+            logger.error(f"Не удалось уведомить реферера {referrer_id}: {e}")
+
 
 # ========== МЕНЮ ПРОФИЛЯ ==========
 @router.message(F.text == "📊 Профиль")
@@ -26,9 +88,11 @@ async def profile_menu(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="🔮 Прогноз баллов", callback_data="predict_score")],
         [InlineKeyboardButton(text="📉 Анализ слабых тем", callback_data="weak_analysis")],
         [InlineKeyboardButton(text="🌟 Мои подписки", callback_data="my_premiums")],
-        [InlineKeyboardButton(text="🎁 Подарить подписку", callback_data="gift_menu")]
+        [InlineKeyboardButton(text="🎁 Подарить подписку", callback_data="gift_menu")],
+        [InlineKeyboardButton(text="📨 Пригласить друга", callback_data="referral_link")],
     ])
     await message.answer("Твой профиль:", reply_markup=kb)
+
 
 # ========== МОИ ПОДПИСКИ ==========
 @router.callback_query(F.data == "my_premiums")
@@ -48,24 +112,41 @@ async def my_premiums(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
     await callback.answer()
 
+
+# ========== РЕФЕРАЛЬНАЯ ПРОГРАММА ==========
+@router.callback_query(F.data == "referral_link")
+async def referral_link(callback: CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    count = db.get_referral_count(user_id)
+    bonuses = db.get_referral_bonus(user_id)
+    if BOT_USERNAME:
+        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+        link_text = f"`{link}`"
+    else:
+        link_text = "_(ссылка недоступна: BOT\\_USERNAME не задан в настройках)_"
+    text = (
+        "📨 **Пригласить друга**\n\n"
+        f"Твоя реферальная ссылка:\n{link_text}\n\n"
+        "Как это работает:\n"
+        "• Друг, перешедший по ссылке, получает **+1 день** на все предметы.\n"
+        "• Ты получаешь **+3 дня** на все предметы после первой покупки друга.\n\n"
+        f"👥 Приглашено друзей: **{count}**\n"
+        f"🎁 Бонусов получено: **{bonuses}**"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Назад в профиль", callback_data="back_to_profile")]
+    ])
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await callback.answer()
+
+
 # ========== МЕНЮ ПОДАРКА ==========
 @router.callback_query(F.data == "gift_menu")
 async def gift_menu(callback: CallbackQuery, state: FSMContext):
-    buttons = []
-    for subject_key in TASKS.keys():
-        display_name = {
-            "chemistry": "Химия",
-            "biology": "Биология",
-            "math": "Математика",
-            "physics": "Физика",
-            "informatics": "Информатика",
-            "history": "История",
-            "geography": "География",
-            "social": "Обществознание",
-            "literature": "Литература",
-            "russian": "Русский язык"
-        }.get(subject_key, subject_key.capitalize())
-        buttons.append([InlineKeyboardButton(text=display_name, callback_data=f"gift_subject_{subject_key}")])
+    buttons = [
+        [InlineKeyboardButton(text=subject_name(k), callback_data=f"gift_subject_{k}")]
+        for k in TASKS.keys()
+    ]
     buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_profile")])
     await callback.message.edit_text(
         "Выбери предмет, подписку на который хочешь подарить:",
@@ -73,21 +154,24 @@ async def gift_menu(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
+
 @router.callback_query(F.data.startswith("gift_subject_"))
 async def gift_subject(callback: CallbackQuery, state: FSMContext):
-    subject = callback.data.split("_")[2]
+    subject = callback.data.split("_", 2)[2]
     await state.update_data(gift_subject=subject)
     await callback.message.edit_text(
         f"Введи Telegram ID пользователя, которому хочешь подарить подписку на {subject}.\n\n"
         "Он может узнать свой ID у бота @userinfobot."
     )
     await state.set_state(Form.gift_user_input)
+    await callback.answer()
+
 
 @router.message(Form.gift_user_input)
 async def gift_user_input(message: Message, state: FSMContext):
     try:
         target_id = int(message.text.strip())
-    except:
+    except Exception:
         await message.answer("❌ Неверный формат ID. Попробуй ещё раз или отправь /cancel.")
         return
     data = await state.get_data()
@@ -97,10 +181,14 @@ async def gift_user_input(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="7 дней - 100 ⭐", callback_data=f"gift_pay_{subject}_{target_id}_7")],
         [InlineKeyboardButton(text="30 дней - 300 ⭐", callback_data=f"gift_pay_{subject}_{target_id}_30")],
         [InlineKeyboardButton(text="90 дней - 750 ⭐", callback_data=f"gift_pay_{subject}_{target_id}_90")],
-        [InlineKeyboardButton(text="← Отмена", callback_data="back_to_profile")]
+        [InlineKeyboardButton(text="← Отмена", callback_data="back_to_profile")],
     ])
-    await message.answer(f"Выбери срок подписки для пользователя {target_id} по предмету {subject}:", reply_markup=kb)
+    await message.answer(
+        f"Выбери срок подписки для пользователя {target_id} по предмету {subject}:",
+        reply_markup=kb
+    )
     await state.clear()
+
 
 @router.callback_query(F.data.startswith("gift_pay_"))
 async def gift_pay(callback: CallbackQuery, state: FSMContext):
@@ -114,6 +202,7 @@ async def gift_pay(callback: CallbackQuery, state: FSMContext):
         f"Пользователь {target_id} получил {days} дней премиума по предмету {subject} (до {expires})."
     )
     await callback.answer()
+
 
 # ========== СТАТИСТИКА ==========
 @router.callback_query(F.data == "my_stats")
@@ -133,6 +222,7 @@ async def cb_my_stats(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
+
 # ========== ИЗБРАННОЕ ==========
 @router.callback_query(F.data == "my_favorites")
 async def cb_my_favorites(callback: CallbackQuery, state: FSMContext):
@@ -140,7 +230,9 @@ async def cb_my_favorites(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     favs = db.get_favorites(user_id)
     if not favs:
-        await callback.message.answer("📭 У тебя пока нет избранных конспектов. Сохраняй их звездочкой в меню темы.")
+        await callback.message.answer(
+            "📭 У тебя пока нет избранных конспектов. Сохраняй их звездочкой в меню темы."
+        )
         return
     kb = InlineKeyboardMarkup(inline_keyboard=[])
     for fav in favs:
@@ -149,9 +241,12 @@ async def cb_my_favorites(callback: CallbackQuery, state: FSMContext):
         theme_name = TASKS.get(subject, {}).get(theme_id, {}).get("name", theme_id)
         if len(theme_name) > 40:
             theme_name = theme_name[:40] + "…"
-        kb.inline_keyboard.append([InlineKeyboardButton(text=theme_name, callback_data=f"cons_{subject}_{theme_id}")])
+        kb.inline_keyboard.append(
+            [InlineKeyboardButton(text=theme_name, callback_data=f"cons_{subject}_{theme_id}")]
+        )
     await callback.message.answer("📌 **Твои избранные конспекты:**", reply_markup=kb, parse_mode="Markdown")
     await callback.answer()
+
 
 # ========== ЦЕЛЬ И НАПОМИНАНИЯ ==========
 @router.callback_query(F.data == "goal_reminder")
@@ -161,16 +256,18 @@ async def cb_goal_reminder(callback: CallbackQuery, state: FSMContext):
     text = f"📅 Ежедневная цель: {count}/{goal} заданий.\n"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Изменить цель", callback_data="set_goal")],
-        [InlineKeyboardButton(text="Установить напоминание", callback_data="set_reminder")]
+        [InlineKeyboardButton(text="Установить напоминание", callback_data="set_reminder")],
     ])
     await callback.message.answer(text, reply_markup=kb)
     await callback.answer()
+
 
 @router.callback_query(F.data == "set_goal")
 async def set_goal_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("Введи новую ежедневную цель (число заданий в день):")
     await state.set_state(Form.reminder_set)
     await callback.answer()
+
 
 @router.message(Form.reminder_set)
 async def process_new_goal(message: Message, state: FSMContext):
@@ -181,14 +278,16 @@ async def process_new_goal(message: Message, state: FSMContext):
         db.set_daily_goal(message.from_user.id, goal)
         await message.answer(f"✅ Ежедневная цель изменена на {goal} заданий.", reply_markup=kb_main())
         await state.clear()
-    except:
+    except Exception:
         await message.answer("❌ Некорректное число. Введи число от 1 до 50.", reply_markup=kb_cancel())
+
 
 @router.callback_query(F.data == "set_reminder")
 async def set_reminder_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("Введи время для напоминания в формате HH:MM (например, 19:00):")
     await state.set_state(Form.reminder_set)
     await callback.answer()
+
 
 @router.message(Form.reminder_set)
 async def process_reminder_time(message: Message, state: FSMContext):
@@ -198,11 +297,15 @@ async def process_reminder_time(message: Message, state: FSMContext):
         return
     time_str = message.text.strip()
     if not re.match(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$', time_str):
-        await message.answer("Неверный формат. Используй HH:MM, например 09:30 или 19:00", reply_markup=kb_cancel())
+        await message.answer(
+            "Неверный формат. Используй HH:MM, например 09:30 или 19:00",
+            reply_markup=kb_cancel()
+        )
         return
     db.set_reminder(message.from_user.id, time_str)
     await message.answer(f"✅ Напоминание установлено на {time_str} каждый день.", reply_markup=kb_main())
     await state.clear()
+
 
 # ========== ПРОГНОЗ БАЛЛОВ И АНАЛИЗ ==========
 @router.callback_query(F.data == "predict_score")
@@ -215,6 +318,7 @@ async def cb_predict_score(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
+
 @router.callback_query(F.data == "weak_analysis")
 async def cb_weak_analysis(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -226,88 +330,171 @@ async def cb_weak_analysis(callback: CallbackQuery, state: FSMContext):
             percent = (s['correct'] / s['total']) * 100
             weak_themes.append(f"• {theme_name} – {percent:.0f}% правильных")
 
-    if weak_themes:
-        text = "📉 **Темы, требующие внимания:**\n" + "\n".join(weak_themes)
-    else:
-        text = "✅ У тебя нет слабых тем! Так держать!"
-
+    text = (
+        "📉 **Темы, требующие внимания:**\n" + "\n".join(weak_themes)
+        if weak_themes
+        else "✅ У тебя нет слабых тем! Так держать!"
+    )
     await callback.message.delete()
     await callback.message.answer(text, parse_mode="Markdown")
     await callback.answer()
 
-# ========== КУПЛЯ ПРЕМИУМА (ОБЩИЙ РАЗДЕЛ) ==========
+
+# ========== КУПЛЯ ПРЕМИУМА ==========
 @router.message(F.text == "🌟 Купить премиум")
 async def show_premium_menu_message(message: Message, state: FSMContext):
-    # Для текстовой кнопки не удаляем сообщение пользователя, просто отвечаем
-    text = "🌟 **Премиум-доступ** 🌟\n\nВыбери предмет, на который хочешь оформить подписку:"
-    buttons = []
-    for subject_key in TASKS.keys():
-        display_name = {
-            "chemistry": "Химия 🧪",
-            "biology": "Биология 🌿",
-            "math": "Математика 📐",
-            "physics": "Физика ⚡",
-            "informatics": "Информатика 💻",
-            "history": "История 📜",
-            "geography": "География 🌍",
-            "social": "Обществознание 🏛️",
-            "literature": "Литература 📖",
-            "russian": "Русский язык 🇷🇺"
-        }.get(subject_key, subject_key.capitalize())
-        buttons.append([InlineKeyboardButton(text=display_name, callback_data=f"buy_subject_premium_{subject_key}")])
-    buttons.append([InlineKeyboardButton(text="← Назад в профиль", callback_data="back_to_profile")])
-    await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons), parse_mode="Markdown")
+    await _send_premium_subject_menu(message)
+
 
 @router.callback_query(F.data == "premium")
 async def show_premium_menu_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
-    text = "🌟 **Премиум-доступ** 🌟\n\nВыбери предмет, на который хочешь оформить подписку:"
-    buttons = []
-    for subject_key in TASKS.keys():
-        display_name = {
-            "chemistry": "Химия 🧪",
-            "biology": "Биология 🌿",
-            "math": "Математика 📐",
-            "physics": "Физика ⚡",
-            "informatics": "Информатика 💻",
-            "history": "История 📜",
-            "geography": "География 🌍",
-            "social": "Обществознание 🏛️",
-            "literature": "Литература 📖",
-            "russian": "Русский язык 🇷🇺"
-        }.get(subject_key, subject_key.capitalize())
-        buttons.append([InlineKeyboardButton(text=display_name, callback_data=f"buy_subject_premium_{subject_key}")])
-    buttons.append([InlineKeyboardButton(text="← Назад в профиль", callback_data="back_to_profile")])
-    await callback.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons), parse_mode="Markdown")
+    await _send_premium_subject_menu(callback.message)
     await callback.answer()
+
+
+async def _send_premium_subject_menu(target: Message):
+    buttons = [
+        [InlineKeyboardButton(text=subject_name(k), callback_data=f"buy_subject_premium_{k}")]
+        for k in TASKS.keys()
+    ]
+    buttons.append([InlineKeyboardButton(text="← Назад в профиль", callback_data="back_to_profile")])
+    await target.answer(
+        "🌟 **Премиум-доступ** 🌟\n\nВыбери предмет, на который хочешь оформить подписку:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+        parse_mode="Markdown",
+    )
+
 
 @router.callback_query(F.data.startswith("buy_subject_premium_"))
 async def buy_subject_premium(callback: CallbackQuery, state: FSMContext):
-    subject = callback.data.split("_")[3]
+    subject = callback.data[len("buy_subject_premium_"):]
+    name = subject_name(subject)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="1 месяц - 300 ⭐", callback_data=f"pay_subject_{subject}_30")],
-        [InlineKeyboardButton(text="3 месяца - 750 ⭐", callback_data=f"pay_subject_{subject}_90")],
-        [InlineKeyboardButton(text="6 месяцев - 1200 ⭐", callback_data=f"pay_subject_{subject}_180")],
-        [InlineKeyboardButton(text="← Назад", callback_data="premium")]
+        [InlineKeyboardButton(
+            text=f"1 месяц  — ⭐ {STARS_PRICES[30]} / 💳 {YOOMONEY_PRICES[30]} ₽",
+            callback_data=f"pay_subject_{subject}_30"
+        )],
+        [InlineKeyboardButton(
+            text=f"3 месяца — ⭐ {STARS_PRICES[90]} / 💳 {YOOMONEY_PRICES[90]} ₽",
+            callback_data=f"pay_subject_{subject}_90"
+        )],
+        [InlineKeyboardButton(
+            text=f"6 месяцев — ⭐ {STARS_PRICES[180]} / 💳 {YOOMONEY_PRICES[180]} ₽",
+            callback_data=f"pay_subject_{subject}_180"
+        )],
+        [InlineKeyboardButton(text="← Назад", callback_data="premium")],
     ])
     await callback.message.edit_text(
-        f"🌟 **Покупка премиума по предмету {subject}**\n\nВыбери срок подписки:",
-        reply_markup=kb
+        f"🌟 **{name}** — выбери срок подписки:",
+        reply_markup=kb,
+        parse_mode="Markdown",
     )
     await callback.answer()
 
+
 @router.callback_query(F.data.startswith("pay_subject_"))
-async def pay_subject(callback: CallbackQuery, state: FSMContext):
-    parts = callback.data.split("_")
-    subject = parts[2]
-    days = int(parts[3])
-    # Здесь должна быть логика оплаты через Telegram Stars
-    expires = db.set_subject_premium(callback.from_user.id, subject, days)
-    await callback.message.edit_text(f"✅ Премиум на предмет {subject} активирован на {days} дней! (до {expires})")
+async def pay_subject_method(callback: CallbackQuery, state: FSMContext):
+    """Show payment method selection (Stars vs YooMoney)."""
+    # Format: pay_subject_<subject>_<days>  — split from the right
+    remainder = callback.data[len("pay_subject_"):]
+    subject, days_str = remainder.rsplit("_", 1)
+    days = int(days_str)
+    name = subject_name(subject)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f"⭐ Telegram Stars — {STARS_PRICES[days]} ⭐",
+            callback_data=f"pay_stars_{subject}_{days}"
+        )],
+        [InlineKeyboardButton(
+            text=f"💳 YooMoney — {YOOMONEY_PRICES[days]} ₽",
+            callback_data=f"pay_yoomoney_{subject}_{days}"
+        )],
+        [InlineKeyboardButton(text="← Назад", callback_data=f"buy_subject_premium_{subject}")],
+    ])
+    await callback.message.edit_text(
+        f"💰 **Оплата: {name}, {days} дней**\n\nВыбери способ оплаты:",
+        reply_markup=kb,
+        parse_mode="Markdown",
+    )
     await callback.answer()
+
+
+# ===== TELEGRAM STARS =====
+@router.callback_query(F.data.startswith("pay_stars_"))
+async def pay_stars(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    remainder = callback.data[len("pay_stars_"):]
+    subject, days_str = remainder.rsplit("_", 1)
+    days = int(days_str)
+    name = subject_name(subject)
+    stars = STARS_PRICES[days]
+    await bot.send_invoice(
+        chat_id=callback.from_user.id,
+        title=f"Премиум: {name} ({days} дней)",
+        description=f"Доступ к задачам и конспектам по предмету «{name}» на {days} дней.",
+        payload=f"{subject}:{days}",
+        currency="XTR",
+        prices=[LabeledPrice(label=f"{days} дней", amount=stars)],
+    )
+    await callback.answer()
+
+
+@router.pre_checkout_query()
+async def handle_pre_checkout(pre_checkout_query: PreCheckoutQuery):
+    await pre_checkout_query.answer(ok=True)
+
+
+@router.message(F.successful_payment)
+async def handle_successful_payment(message: Message, bot: Bot):
+    payload = message.successful_payment.invoice_payload
+    try:
+        subject, days_str = payload.split(":")
+        days = int(days_str)
+    except Exception:
+        logger.error(f"Bad Stars payment payload: {payload}")
+        await message.answer("✅ Оплата получена, но произошла ошибка активации. Свяжитесь с поддержкой.")
+        return
+
+    expires = db.set_subject_premium(message.from_user.id, subject, days)
+    name = subject_name(subject)
+    await message.answer(
+        f"✅ Оплата через Telegram Stars прошла успешно!\n"
+        f"Премиум на **{name}** активирован на {days} дней (до {expires}).",
+        parse_mode="Markdown",
+    )
+    await _give_referral_bonus(bot, message.from_user.id)
+
+
+# ===== YOOMONEY =====
+@router.callback_query(F.data.startswith("pay_yoomoney_"))
+async def pay_yoomoney(callback: CallbackQuery, state: FSMContext):
+    remainder = callback.data[len("pay_yoomoney_"):]
+    subject, days_str = remainder.rsplit("_", 1)
+    days = int(days_str)
+    name = subject_name(subject)
+    amount = YOOMONEY_PRICES[days]
+    order_id = str(uuid.uuid4())
+    db.save_pending_payment(order_id, callback.from_user.id, subject, days)
+    pay_url = _build_yoomoney_url(order_id, subject, days)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"💳 Оплатить {amount} ₽", url=pay_url)],
+        [InlineKeyboardButton(text="← Назад", callback_data=f"pay_subject_{subject}_{days}")],
+    ])
+    await callback.message.edit_text(
+        f"💳 **Оплата через YooMoney**\n\n"
+        f"Предмет: **{name}**\n"
+        f"Срок: **{days} дней**\n"
+        f"Сумма: **{amount} ₽**\n\n"
+        "Нажми кнопку, оплати и вернись — подписка активируется автоматически после подтверждения оплаты.",
+        reply_markup=kb,
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
 
 # ========== ОБРАБОТЧИК ВОЗВРАТА ==========
 @router.callback_query(F.data == "back_to_profile")
 async def back_to_profile(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await profile_menu(callback.message, state)
+    await callback.answer()
