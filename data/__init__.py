@@ -11,7 +11,6 @@ from .social import TASKS as social_tasks, VIDEO_LINKS as social_videos
 from .literature import TASKS as literature_tasks, VIDEO_LINKS as literature_videos
 from .russian import TASKS as russian_tasks, VIDEO_LINKS as russian_videos
 
-# Объединяем словари заданий
 TASKS = {}
 TASKS.update(chemistry_tasks)
 TASKS.update(biology_tasks)
@@ -24,7 +23,6 @@ TASKS.update(social_tasks)
 TASKS.update(literature_tasks)
 TASKS.update(russian_tasks)
 
-# Объединяем словари видео
 VIDEO_LINKS = {}
 VIDEO_LINKS.update(chemistry_videos)
 VIDEO_LINKS.update(biology_videos)
