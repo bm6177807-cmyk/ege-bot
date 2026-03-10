@@ -22,25 +22,44 @@ router = Router()
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
-    
-    # Проверка на подарок в ссылке (например, gift_chemistry_30)
+
+    user_id = message.from_user.id
     args = message.text.split()
+
+    # Parse referrer or gift from /start <param>
+    referrer_id = None
     gift_info = None
-    if len(args) > 1 and args[1].startswith("gift_"):
-        parts = args[1].split('_')
-        if len(parts) == 3:
-            subject = parts[1]
-            days = int(parts[2])
-            gift_info = (subject, days)
-    
-    user = db.get_user(message.from_user.id, message.from_user.username)
-    
-    # Если есть подарок в ссылке, выдаём подписку
+    if len(args) > 1:
+        param = args[1]
+        if param.startswith("gift_"):
+            parts = param.split("_")
+            if len(parts) == 3:
+                try:
+                    gift_info = (parts[1], int(parts[2]))
+                except ValueError:
+                    pass
+        elif param.isdigit():
+            ref_id = int(param)
+            if ref_id != user_id and not db.is_referral_exists(user_id):
+                referrer_id = ref_id
+
+    user = db.get_user(user_id, message.from_user.username)
+
+    bonus_messages = []
+
+    # Referral bonus: +1 day on all subjects for newcomer
+    if referrer_id is not None:
+        db.add_referral(referrer_id, user_id)
+        for subj in TASKS.keys():
+            db.set_subject_premium(user_id, subj, 1)
+        bonus_messages.append("✅ Реферальный бонус: +1 день на все предметы!")
+
+    # Legacy gift link processing
     if gift_info:
         subject, days = gift_info
-        db.set_subject_premium(message.from_user.id, subject, days)
-        await message.answer(f"🎁 Вы получили в подарок премиум на {days} дней по предмету {subject}!")
-    
+        db.set_subject_premium(user_id, subject, days)
+        bonus_messages.append(f"🎁 Подарок: +{days} дней по предмету {subject}!")
+
     if not user.get('exam_date'):
         welcome_text = (
             f"✨ Репетитор ЕГЭ 2026 ✨\n\n"
@@ -56,8 +75,10 @@ async def cmd_start(message: Message, state: FSMContext):
             f"Дата экзамена: {user['exam_date']}\n\n"
             "Выбирай предмет, тему – и вперёд!"
         )
-    
+
     await message.answer(welcome_text, reply_markup=kb_main())
+    for msg in bonus_messages:
+        await message.answer(msg)
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
@@ -211,41 +232,6 @@ async def subj_level_test(callback: CallbackQuery, state: FSMContext):
 @router.message(F.text == "📸 Разбор по фото")
 async def photo_button(message: Message, state: FSMContext):
     await photo_instruction(message, state)
-
-@router.message(F.text == "📊 Профиль")
-async def profile_menu(message: Message, state: FSMContext):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Моя статистика", callback_data="my_stats")],
-        [InlineKeyboardButton(text="📅 Цель / Напоминание", callback_data="goal_reminder")],
-        [InlineKeyboardButton(text="📌 Избранное", callback_data="my_favorites")],
-        [InlineKeyboardButton(text="🔮 Прогноз баллов", callback_data="predict_score")],
-        [InlineKeyboardButton(text="📉 Анализ слабых тем", callback_data="weak_analysis")],
-        [InlineKeyboardButton(text="🌟 Мои подписки", callback_data="my_premiums")],
-        [InlineKeyboardButton(text="🎁 Подарить подписку", callback_data="gift_menu")]
-    ])
-    await message.answer("Твой профиль:", reply_markup=kb)
-
-@router.message(F.text == "🌟 Купить премиум")
-async def buy_premium_button(message: Message, state: FSMContext):
-    # Прямая отправка меню выбора предмета для покупки премиума
-    text = "🌟 **Премиум-доступ** 🌟\n\nВыбери предмет, на который хочешь оформить подписку:"
-    buttons = []
-    for subject_key in TASKS.keys():
-        display_name = {
-            "chemistry": "Химия 🧪",
-            "biology": "Биология 🌿",
-            "math": "Математика 📐",
-            "physics": "Физика ⚡",
-            "informatics": "Информатика 💻",
-            "history": "История 📜",
-            "geography": "География 🌍",
-            "social": "Обществознание 🏛️",
-            "literature": "Литература 📖",
-            "russian": "Русский язык 🇷🇺"
-        }.get(subject_key, subject_key.capitalize())
-        buttons.append([InlineKeyboardButton(text=display_name, callback_data=f"buy_subject_premium_{subject_key}")])
-    buttons.append([InlineKeyboardButton(text="← Назад в профиль", callback_data="back_to_profile")])
-    await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons), parse_mode="Markdown")
 
 @router.message(F.text == "ℹ️ Помощь")
 async def help_button(message: Message):
