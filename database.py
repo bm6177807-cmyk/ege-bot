@@ -688,6 +688,37 @@ def get_users_with_due_repetitions(date=None):
     return [r[0] for r in rows]
 
 # ---------- Рефералы ----------
+def user_exists(user_id):
+    """Check if user already exists in the database (first-launch detection)."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row is not None
+
+
+def get_referrer_for_user(user_id):
+    """Get referral record for a referred user."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT referrer_id, premium_bonus_given FROM referrals WHERE referred_id = ?", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    if row:
+        return {"referrer_id": row[0], "premium_bonus_given": row[1]}
+    return None
+
+
+def mark_referral_bonus_given(referred_id):
+    """Mark that the referral premium bonus has been given to the referrer."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("UPDATE referrals SET premium_bonus_given = 1 WHERE referred_id = ?", (referred_id,))
+    conn.commit()
+    conn.close()
+
+
 def add_referral(referrer_id, referred_id):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
