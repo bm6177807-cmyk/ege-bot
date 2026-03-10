@@ -47,7 +47,7 @@ _SUBJECT_NAMES = {
 }
 
 # Перечень инструментов каждого предмета: (callback_data, текст кнопки)
-SUBJECT_TOOLS: dict = {
+SUBJECT_TOOLS: dict[str, list[tuple[str, str]]] = {
     "math": [
         ("tool_math_formulas", "📐 Справочник формул"),
     ],
@@ -294,7 +294,11 @@ async def geo_quiz_start(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(Form.tool_geo_quiz, F.data.startswith("tool_geo_ans_"))
 async def geo_quiz_answer(callback: CallbackQuery, state: FSMContext) -> None:
-    idx = int(callback.data.rsplit("_", 1)[-1])
+    try:
+        idx = int(callback.data.rsplit("_", 1)[-1])
+    except (ValueError, IndexError):
+        await callback.answer("⚠️ Ошибка обработки ответа. Попробуйте снова.")
+        return
     data = await state.get_data()
     correct_idx: int = data.get("geo_correct_idx", -1)
     correct: str = data.get("geo_correct", "?")
@@ -402,12 +406,12 @@ def _pick_hist_card(cat: str, exclude: list | None = None) -> tuple | None:
     if not cards:
         return None
     pool = (
-        [(i, c) for i, c in enumerate(cards) if i not in exclude]
+        [(i, cards[i][0], cards[i][1]) for i in range(len(cards)) if i not in exclude]
         if exclude and len(exclude) < len(cards)
-        else list(enumerate(cards))
+        else [(i, cards[i][0], cards[i][1]) for i in range(len(cards))]
     )
-    idx, card = random.choice(pool)
-    return idx, card[0], card[1]  # idx, дата, событие
+    idx, date, event = random.choice(pool)
+    return idx, date, event  # idx, дата, событие
 
 
 @router.callback_query(F.data == "tool_hist_cards")
@@ -624,10 +628,10 @@ async def info_convert_process(message: Message, state: FSMContext) -> None:
     await message.answer(
         f"🔢 *Результат перевода*\n\n"
         f"Исходное число: `{num_str.upper()}` (основание {base})\n\n"
-        f"• Двоичная   (2):  `{bin(value)[2:]}`\n"
-        f"• Восьмеричная (8): `{oct(value)[2:]}`\n"
-        f"• Десятичная (10): `{value}`\n"
-        f"• Шестн-ная (16): `{hex(value)[2:].upper()}`",
+        f"• Двоичная      (2):  `{bin(value)[2:]}`\n"
+        f"• Восьмеричная  (8):  `{oct(value)[2:]}`\n"
+        f"• Десятичная   (10):  `{value}`\n"
+        f"• Шестнадцатеричная (16):  `{hex(value)[2:].upper()}`",
         reply_markup=kb,
         parse_mode="Markdown",
     )
@@ -638,7 +642,13 @@ async def info_convert_process(message: Message, state: FSMContext) -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def _parse_gametes(genotype: str) -> list:
-    """Получить список гамет из диплоидного генотипа (например, 'Aa' → ['A', 'a'])."""
+    """Получить список гамет из диплоидного генотипа.
+
+    Паттерн ищет пары аллелей:
+      - [A-Z][a-z]  — гетерозиготный локус (Aa)
+      - [A-Z]{2}    — гомозиготный доминантный (AA)
+      - [a-z]{2}    — гомозиготный рецессивный (aa)
+    """
     pairs = re.findall(r"[A-Z][a-z]|[A-Z]{2}|[a-z]{2}", genotype.strip())
     if not pairs:
         return []
@@ -716,7 +726,7 @@ def _format_punnett(res: dict) -> str:
         pheno_counts[_phenotype_class(geno)] += cnt
 
     total = res["total"]
-    num_loci = len(_phenotype_class(next(iter(res["counts"]))))
+    num_loci = len(_phenotype_class(next(iter(res["counts"]), ""))) if res["counts"] else 0
 
     lines.append("\n*Фенотипы* (полное доминирование):")
     if num_loci == 1:
