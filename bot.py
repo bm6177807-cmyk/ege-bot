@@ -25,8 +25,9 @@ from handlers import (
     referral_router,
     adaptive_router,
     daily_challenge_router,
-    lava_router,
+    yoomoney_router,
 )
+from handlers.yoomoney import handle_yoomoney_webhook
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -58,74 +59,30 @@ dp.include_router(repetition_router)
 dp.include_router(referral_router)
 dp.include_router(adaptive_router)
 dp.include_router(daily_challenge_router)
-dp.include_router(lava_router)
+dp.include_router(yoomoney_router)
 
 # ========== ВЕБ-СЕРВЕР ==========
 async def handle_health(request):
-    """Health check для Render (без мета-тегов)"""
+    """Health check для Render"""
     return web.Response(text="OK", status=200)
 
 async def handle_root(request):
-    """Главная страница с мета-тегом для LAVA (исправленный)"""
-    html_content = f"""<!DOCTYPE html>
+    """Главная страница"""
+    html_content = """<!DOCTYPE html>
 <html>
-<head>
-    <meta name="lava-verify" content="bc80577c07a158d1">
-</head>
+<head><title>EGE Bot</title></head>
 <body>
-    <h1>Бот работает</h1>
+<h1>Бот работает</h1>
 </body>
 </html>"""
     return web.Response(text=html_content, content_type="text/html", status=200)
-
-# Эндпоинты для верификации через файл
-async def handle_lava_verify_file(request):
-    """Возвращает текст верификации для файлового подтверждения (как в DNS)"""
-    return web.Response(text="lava-verify=bc80577c07a158d1", status=200)
-
-async def handle_lava_webhook(request):
-    try:
-        data = await request.json()
-        logger.info(f"LAVA webhook received: {data}")
-
-        # Здесь должна быть проверка подписи (по документации LAVA)
-
-        if data.get("status") == "success" or data.get("status") == "paid":
-            order_id = data.get("order_id")
-            payment = db.get_pending_payment(order_id)
-            if payment:
-                expires = db.set_subject_premium(
-                    payment["user_id"],
-                    payment["subject"],
-                    payment["days"]
-                )
-                try:
-                    await bot.send_message(
-                        payment["user_id"],
-                        f"✅ Оплата прошла успешно!\n"
-                        f"Премиум на предмет {payment['subject']} активирован на {payment['days']} дней (до {expires})."
-                    )
-                except Exception as e:
-                    logger.error(f"Не удалось уведомить пользователя {payment['user_id']}: {e}")
-                db.delete_pending_payment(order_id)
-        return web.Response(text="OK", status=200)
-    except Exception as e:
-        logger.exception(f"Webhook error: {e}")
-        return web.Response(text="Error", status=500)
 
 async def run_web_server():
     app = web.Application()
     app.router.add_get('/health', handle_health)
     app.router.add_get('/healthcheck', handle_health)
     app.router.add_get('/', handle_root)
-
-    # Все возможные имена файлов для верификации
-    app.router.add_get('/lava-verify.txt', handle_lava_verify_file)
-    app.router.add_get('/lava-verify.html', handle_lava_verify_file)
-    app.router.add_get('/lava-verification.txt', handle_lava_verify_file)
-    app.router.add_get('/bc80577c07a158d1.txt', handle_lava_verify_file)  # если LAVA ожидает имя = код
-
-    app.router.add_post('/lava-webhook', handle_lava_webhook)
+    app.router.add_post('/yoomoney-webhook', handle_yoomoney_webhook)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 10000)
