@@ -11,7 +11,8 @@ from aiogram.fsm.context import FSMContext
 import database as db
 from data import TASKS
 from keyboards import (
-    kb_answers, kb_after_answer, kb_theme_menu, kb_generate_confirm,
+    kb_answers, kb_after_answer, kb_after_exam_number_answer,
+    kb_theme_menu, kb_generate_confirm,
     kb_main, SUBJECT_NAMES
 )
 from .states import Form
@@ -206,10 +207,19 @@ async def check_answer(callback: CallbackQuery, state: FSMContext):
     else:
         user = db.get_user(callback.from_user.id)
         daily_count, daily_goal = db.get_daily_goal(callback.from_user.id)
+
+        exam_number_mode = data.get("exam_number_mode", False)
+        exam_task_id = data.get("exam_task_id")
+
+        if exam_number_mode and exam_task_id:
+            keyboard = kb_after_exam_number_answer(subj, exam_task_id)
+        else:
+            keyboard = kb_after_answer(subj, theme_id)
+
         await callback.message.answer(
             f"📊 Уровень: {user['level']} | Опыт: {user['exp']}\n"
             f"📅 Ежедневная цель: {daily_count}/{daily_goal}",
-            reply_markup=kb_after_answer(subj, theme_id)
+            reply_markup=keyboard
         )
         await state.update_data(task=None, correct=None)
         await state.set_state(Form.menu)
