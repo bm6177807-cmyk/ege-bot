@@ -15,6 +15,7 @@ from data import TASKS
 from keyboards import kb_main, kb_cancel, kb_answers, kb_subjects, kb_profile_menu
 from .states import Form
 from .utils import ai_text, get_video_links
+from .profile import _send_premium_subject_menu
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -82,7 +83,7 @@ async def cmd_start(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="📚 Выбрать предмет", callback_data="open_subjects")],
         [InlineKeyboardButton(text="🎯 Ежедневка", callback_data="open_daily_pick"),
          InlineKeyboardButton(text="👤 Профиль", callback_data="open_profile")],
-        [InlineKeyboardButton(text="⭐ Премиум — 199 ₽/30 дней", callback_data="open_premium")],
+        [InlineKeyboardButton(text="⭐ Купить премиум (Stars)", callback_data="open_premium")],
     ])
 
     await message.answer(welcome_text, reply_markup=quick_kb)
@@ -243,6 +244,23 @@ async def subj_level_test(callback: CallbackQuery, state: FSMContext):
 async def photo_button(message: Message, state: FSMContext):
     await photo_instruction(message, state)
 
+@router.message(F.text == "📚 Предметы")
+async def subjects_button(message: Message, state: FSMContext):
+    await message.answer("Выбери предмет:", reply_markup=kb_subjects())
+    await state.set_state(Form.subject)
+
+@router.message(F.text == "🎯 Ежедневка")
+async def daily_button(message: Message, state: FSMContext):
+    await message.answer(
+        "📅 Ежедневное задание\n\nВыбери предмет для сегодняшней тренировки:",
+        reply_markup=_kb_daily_subject_pick()
+    )
+
+@router.message(F.text == "📊 Профиль")
+async def profile_button(message: Message, state: FSMContext):
+    await message.answer("👤 Профиль:", reply_markup=kb_profile_menu())
+
+
 @router.message(F.text == "ℹ️ Помощь")
 async def help_button(message: Message):
     await cmd_help(message)
@@ -279,17 +297,7 @@ async def cb_open_profile(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data == "open_premium")
 async def cb_open_premium(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer(
-        "⭐ *Премиум — 199 ₽/30 дней*\n\n"
-        "Получи доступ ко всем предметам без ограничений:\n"
-        "• Безлимит заданий\n"
-        "• Разбор ошибок\n"
-        "• Фото-задания (OCR + ИИ)\n"
-        "• Генерация заданий\n"
-        "• Мини-пробники\n\n"
-        "Нажми «🌟 Купить премиум» в главном меню.",
-        parse_mode="Markdown"
-    )
+    await _send_premium_subject_menu(callback.message)
     await callback.answer()
 
 @router.callback_query(F.data == "back_to_main")

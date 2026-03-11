@@ -15,6 +15,7 @@ from aiogram.fsm.context import FSMContext
 import database as db
 from data import TASKS
 from keyboards import kb_profile_menu, kb_cancel, kb_main
+from payments import STARS_PRICES, YOOMONEY_PRICES, build_stars_payload, parse_stars_payload
 from .states import Form
 
 router = Router()
@@ -24,9 +25,6 @@ ADMIN_IDS = [int(i) for i in os.getenv("ADMIN_IDS", "").split(",") if i]
 BOT_USERNAME = os.getenv("BOT_USERNAME", "")
 YOOMONEY_RECEIVER = os.getenv("YOOMONEY_RECEIVER", "")
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
-
-STARS_PRICES = {30: 300, 90: 750, 180: 1200}
-YOOMONEY_PRICES = {30: 200, 90: 500, 180: 900}
 
 SUBJECT_NAMES = {
     "chemistry": "Химия 🧪",
@@ -319,7 +317,7 @@ async def cb_weak_analysis(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 # ========== КУПЛЯ ПРЕМИУМА (ОБЩИЙ РАЗДЕЛ) ==========
-@router.message(F.text == "🌟 Купить премиум")
+@router.message(F.text == "⭐ Купить премиум")
 async def show_premium_menu_message(message: Message, state: FSMContext):
     await _send_premium_subject_menu(message)
 
@@ -404,10 +402,12 @@ async def pay_stars(callback: CallbackQuery, state: FSMContext, bot: Bot):
     days = int(days_str)
     name = subject_name(subject)
     stars = STARS_PRICES[days]
+    order_id = str(uuid.uuid4())
+    payload = build_stars_payload(subject, days, order_id)
 
     logger.info(
-        "Stars: pay_stars clicked user_id=%s subject=%s days=%s stars=%s",
-        callback.from_user.id, subject, days, stars,
+        "Stars: pay_stars clicked user_id=%s subject=%s days=%s stars=%s order_id=%s",
+        callback.from_user.id, subject, days, stars, order_id,
     )
 
     try:
@@ -415,13 +415,14 @@ async def pay_stars(callback: CallbackQuery, state: FSMContext, bot: Bot):
             chat_id=callback.from_user.id,
             title=f"Премиум: {name} ({days} дней)",
             description=f"Доступ к задачам и конспектам по предмету «{name}» на {days} дней.",
-            payload=f"{subject}:{days}",
+            payload=payload,
+            provider_token="",  # empty string required for Telegram Stars (XTR)
             currency="XTR",
             prices=[LabeledPrice(label=f"{days} дней", amount=stars)],
         )
         logger.info(
-            "Stars: invoice sent user_id=%s subject=%s days=%s stars=%s",
-            callback.from_user.id, subject, days, stars,
+            "Stars: invoice sent user_id=%s subject=%s days=%s stars=%s order_id=%s",
+            callback.from_user.id, subject, days, stars, order_id,
         )
     except Exception:
         logger.exception(
@@ -448,20 +449,58 @@ async def handle_pre_checkout(pre_checkout_query: PreCheckoutQuery):
 
 @router.message(F.successful_payment)
 async def handle_successful_payment(message: Message, bot: Bot):
+    sp = message.successful_payment
     logger.info(
-        "Stars: successful_payment from=%s payload=%s",
+        "Stars: successful_payment from=%s payload=%s telegram_charge_id=%s",
         message.from_user.id,
-        message.successful_payment.invoice_payload,
+        sp.invoice_payload,
+        sp.telegram_payment_charge_id,
     )
-    payload = message.successful_payment.invoice_payload
-    try:
-        subject, days_str = payload.split(":")
-        days = int(days_str)
-    except Exception:
-        logger.error(f"Bad Stars payment payload: {payload}")
-        await message.answer("✅ Оплата получена, но произошла ошибка активации. Свяжитесь с поддержкой.")
+
+    # ── Parse payload ─────────────────────────────────────────────────────
+    parsed = parse_stars_payload(sp.invoice_payload)
+    if parsed is None:
+        # Fallback: try legacy format "subject:days"
+        try:
+            subject, days_str = sp.invoice_payload.split(":", 1)
+            order_id = str(uuid.uuid4())
+            days = int(days_str)
+            parsed = (order_id, subject, days)
+        except Exception:
+            logger.error("Stars: bad payment payload: %s", sp.invoice_payload)
+            await message.answer(
+                "✅ Оплата получена, но произошла ошибка активации. Свяжитесь с поддержкой."
+            )
+            return
+
+    order_id, subject, days = parsed
+
+    # ── Idempotency: skip if already processed ────────────────────────────
+    if db.is_stars_payment_exists(sp.telegram_payment_charge_id):
+        logger.warning(
+            "Stars: duplicate payment ignored telegram_charge_id=%s",
+            sp.telegram_payment_charge_id,
+        )
         return
 
+    # ── Persist payment record ────────────────────────────────────────────
+    inserted = db.save_stars_payment(
+        order_id=order_id,
+        user_id=message.from_user.id,
+        subject=subject,
+        days=days,
+        telegram_charge_id=sp.telegram_payment_charge_id,
+        provider_charge_id=getattr(sp, "provider_payment_charge_id", None) or "",
+    )
+    if not inserted:
+        # Race condition: another update snuck in
+        logger.warning(
+            "Stars: duplicate payment (race) telegram_charge_id=%s",
+            sp.telegram_payment_charge_id,
+        )
+        return
+
+    # ── Grant premium ─────────────────────────────────────────────────────
     expires = db.set_subject_premium(message.from_user.id, subject, days)
     name = subject_name(subject)
     await message.answer(

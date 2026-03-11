@@ -12,7 +12,7 @@ import database as db
 from data import TASKS
 from keyboards import (
     kb_answers, kb_after_answer, kb_theme_menu, kb_generate_confirm,
-    kb_main
+    kb_main, SUBJECT_NAMES
 )
 from .states import Form
 from .utils import ai_text, get_video_links, subject_premium_required
@@ -149,9 +149,9 @@ async def check_answer(callback: CallbackQuery, state: FSMContext):
         reply = f"❌ Неправильно. Правильный ответ: {correct_answer}"
 
     if not from_exam:
-        subj_name = "химии" if subj == "chemistry" else "биологии"
+        subj_name = SUBJECT_NAMES.get(subj, subj.capitalize())
         expl_prompt = (
-            f"Разбор ошибки ЕГЭ по {subj_name}. Задание: {task['text']}. "
+            f"Разбор ошибки ЕГЭ по предмету {subj_name}. Задание: {task['text']}. "
             f"Ответ ученика: {let}. Правильный ответ: {correct}. "
             "Пиши просто, понятно, без Markdown."
         )
@@ -313,12 +313,12 @@ async def generate_task(callback: CallbackQuery, state: FSMContext):
 
     theme_data = TASKS.get(subj, {}).get(tid, {})
     theme_name = theme_data.get("name", tid)
-    subject_name = "химии" if subj == "chemistry" else "биологии"
+    subject_name = SUBJECT_NAMES.get(subj, subj.capitalize())
 
     await callback.message.edit_text("⏳ Генерирую задание... Это займёт несколько секунд.")
 
     prompt = (
-        f"Создай задание в стиле ЕГЭ по {subject_name} на тему '{theme_name}'. "
+        f"Создай задание в стиле ЕГЭ по предмету {subject_name} на тему '{theme_name}'. "
         f"Формат: вопрос и 4 варианта ответа, обозначенных буквами A, B, C, D. "
         f"Укажи правильный ответ буквой. "
         f"Пример:\n\n"
