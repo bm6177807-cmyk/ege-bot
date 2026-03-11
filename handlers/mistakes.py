@@ -10,14 +10,13 @@ from keyboards import kb_mistakes_menu, kb_mistake_review, SUBJECT_NAMES
 
 router = Router()
 
-_SUBJECT_NAMES = SUBJECT_NAMES
 
 
 @router.callback_query(F.data.startswith("mistakes_") & ~F.data.startswith("mistakes_review_") & ~F.data.startswith("mistakes_list_"))
 async def show_mistakes_menu(callback: CallbackQuery, state: FSMContext):
     subj = callback.data[len("mistakes_"):]
     user_id = callback.from_user.id
-    subj_name = _SUBJECT_NAMES.get(subj, subj.capitalize())
+    subj_name = SUBJECT_NAMES.get(subj, subj.capitalize())
     mistakes = db.get_subject_mistakes(user_id, subj)
     count = len(mistakes)
 
@@ -74,7 +73,7 @@ async def show_mistakes_list(callback: CallbackQuery, state: FSMContext):
     subj = callback.data[len("mistakes_list_"):]
     user_id = callback.from_user.id
     mistakes = db.get_subject_mistakes(user_id, subj)[:10]
-    subj_name = _SUBJECT_NAMES.get(subj, subj.capitalize())
+    subj_name = SUBJECT_NAMES.get(subj, subj.capitalize())
 
     if not mistakes:
         await callback.answer("Ошибок нет!", show_alert=True)

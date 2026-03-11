@@ -14,7 +14,6 @@ from .utils import get_all_subject_tasks
 
 router = Router()
 
-_SUBJECT_NAMES = SUBJECT_NAMES
 
 def _get_all_tasks(subj: str) -> list:
     """Возвращает все задания предмета из TASKS."""
@@ -26,7 +25,7 @@ async def show_daily_task(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     today = date.today().isoformat()
 
-    subj_name = _SUBJECT_NAMES.get(subj, subj.capitalize())
+    subj_name = SUBJECT_NAMES.get(subj, subj.capitalize())
 
     all_tasks = _get_all_tasks(subj)
     if not all_tasks:

@@ -10,14 +10,13 @@ from keyboards import kb_progress_menu, SUBJECT_NAMES
 
 router = Router()
 
-_SUBJECT_NAMES = SUBJECT_NAMES
 
 
 @router.callback_query(F.data.startswith("progress_") & ~F.data.startswith("progress_weak_"))
 async def show_progress(callback: CallbackQuery, state: FSMContext):
     subj = callback.data[len("progress_"):]
     user_id = callback.from_user.id
-    subj_name = _SUBJECT_NAMES.get(subj, subj.capitalize())
+    subj_name = SUBJECT_NAMES.get(subj, subj.capitalize())
 
     prog = db.get_subject_progress(user_id, subj)
     streak = db.get_subject_streak(user_id, subj)
@@ -62,7 +61,7 @@ async def show_progress(callback: CallbackQuery, state: FSMContext):
 async def show_weak_themes(callback: CallbackQuery, state: FSMContext):
     subj = callback.data[len("progress_weak_"):]
     user_id = callback.from_user.id
-    subj_name = _SUBJECT_NAMES.get(subj, subj.capitalize())
+    subj_name = SUBJECT_NAMES.get(subj, subj.capitalize())
 
     weak = db.get_subject_weak_themes(user_id, subj, limit=5)
 

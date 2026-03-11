@@ -14,7 +14,6 @@ from .utils import get_all_subject_tasks
 
 router = Router()
 
-_SUBJECT_NAMES = SUBJECT_NAMES
 
 MINI_EXAM_SIZE = 5
 
@@ -26,7 +25,7 @@ def _get_all_tasks(subj: str) -> list:
 @router.callback_query(F.data.startswith("mini_exam_") & ~F.data.startswith("mini_exam_start_") & ~F.data.startswith("mini_exam_next"))
 async def show_mini_exam_intro(callback: CallbackQuery, state: FSMContext):
     subj = callback.data[len("mini_exam_"):]
-    subj_name = _SUBJECT_NAMES.get(subj, subj.capitalize())
+    subj_name = SUBJECT_NAMES.get(subj, subj.capitalize())
 
     try:
         await callback.message.delete()

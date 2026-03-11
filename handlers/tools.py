@@ -36,7 +36,6 @@ router = Router()
 
 # ─────────────────── вспомогательные данные ───────────────────
 
-_SUBJECT_NAMES = SUBJECT_NAMES
 
 # Перечень инструментов каждого предмета: (callback_data, текст кнопки)
 SUBJECT_TOOLS: dict[str, list[tuple[str, str]]] = {
@@ -76,7 +75,7 @@ TOOL_SUBJECTS = set(SUBJECT_TOOLS.keys())
 ))
 async def show_tools_menu(callback: CallbackQuery, state: FSMContext) -> None:
     subj = callback.data[len("tool_"):]
-    name = _SUBJECT_NAMES.get(subj, subj)
+    name = SUBJECT_NAMES.get(subj, subj)
     tools = SUBJECT_TOOLS.get(subj, [])
 
     await state.clear()
