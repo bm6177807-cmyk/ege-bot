@@ -252,6 +252,39 @@ def init_db():
         )
     """)
 
+    # Таблица тем кодификатора
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS themes (
+            subject TEXT,
+            theme_id TEXT,
+            name TEXT,
+            parent_id TEXT,
+            PRIMARY KEY (subject, theme_id)
+        )
+    """)
+
+    # Таблица типов заданий ЕГЭ
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS exam_task_types (
+            subject TEXT,
+            exam_task_id TEXT,
+            number TEXT,
+            name TEXT,
+            part TEXT,
+            PRIMARY KEY (subject, exam_task_id)
+        )
+    """)
+
+    # Таблица соответствия заданий и тем
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS exam_task_theme_map (
+            subject TEXT,
+            exam_task_id TEXT,
+            theme_id TEXT,
+            PRIMARY KEY (subject, exam_task_id, theme_id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -1033,3 +1066,93 @@ def is_stars_payment_exists(telegram_charge_id: str) -> bool:
     row = cur.fetchone()
     conn.close()
     return row is not None
+
+
+# ---------- Темы кодификатора ----------
+
+def upsert_theme(subject: str, theme_id: str, name: str, parent_id: str | None = None):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO themes (subject, theme_id, name, parent_id)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(subject, theme_id) DO UPDATE SET name=excluded.name, parent_id=excluded.parent_id
+    """, (subject, theme_id, name, parent_id))
+    conn.commit()
+    conn.close()
+
+
+def get_themes(subject: str):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT theme_id, name, parent_id FROM themes WHERE subject = ? ORDER BY theme_id",
+        (subject,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return [{"theme_id": r[0], "name": r[1], "parent_id": r[2]} for r in rows]
+
+
+# ---------- Типы заданий ЕГЭ ----------
+
+def upsert_exam_task_type(subject: str, exam_task_id: str, number: str, name: str, part: str | None = None):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO exam_task_types (subject, exam_task_id, number, name, part)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(subject, exam_task_id) DO UPDATE SET
+            number=excluded.number,
+            name=excluded.name,
+            part=excluded.part
+    """, (subject, exam_task_id, number, name, part))
+    conn.commit()
+    conn.close()
+
+
+def get_exam_task_types(subject: str):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT exam_task_id, number, name, part FROM exam_task_types WHERE subject = ? ORDER BY number",
+        (subject,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return [{"exam_task_id": r[0], "number": r[1], "name": r[2], "part": r[3]} for r in rows]
+
+
+# ---------- Соответствие заданий и тем ----------
+
+def set_exam_task_theme_map(subject: str, exam_task_id: str, theme_ids: list):
+    if not theme_ids:
+        raise ValueError(f"theme_ids не может быть пустым для exam_task_id='{exam_task_id}'")
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM exam_task_theme_map WHERE subject = ? AND exam_task_id = ?",
+        (subject, exam_task_id),
+    )
+    for theme_id in theme_ids:
+        cur.execute("""
+            INSERT OR IGNORE INTO exam_task_theme_map (subject, exam_task_id, theme_id)
+            VALUES (?, ?, ?)
+        """, (subject, exam_task_id, theme_id))
+    conn.commit()
+    conn.close()
+
+
+def get_exam_task_theme_map(subject: str):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT exam_task_id, theme_id FROM exam_task_theme_map WHERE subject = ? ORDER BY exam_task_id",
+        (subject,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    result = {}
+    for exam_task_id, theme_id in rows:
+        result.setdefault(exam_task_id, []).append(theme_id)
+    return result

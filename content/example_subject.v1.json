@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "subject": "example",
+  "subject_name": "Пример предмета",
+  "themes": [
+    {
+      "id": "1",
+      "name": "Раздел 1. Основы",
+      "parent_id": null
+    },
+    {
+      "id": "1.1",
+      "name": "Тема 1.1. Базовые понятия",
+      "parent_id": "1"
+    },
+    {
+      "id": "1.2",
+      "name": "Тема 1.2. Ключевые законы",
+      "parent_id": "1"
+    },
+    {
+      "id": "2",
+      "name": "Раздел 2. Продвинутый уровень",
+      "parent_id": null
+    },
+    {
+      "id": "2.1",
+      "name": "Тема 2.1. Сложные задачи",
+      "parent_id": "2"
+    }
+  ],
+  "exam_tasks": [
+    {
+      "id": "task_1",
+      "number": "1",
+      "name": "Знание базовых понятий",
+      "part": "A"
+    },
+    {
+      "id": "task_2",
+      "number": "2",
+      "name": "Применение ключевых законов",
+      "part": "A"
+    },
+    {
+      "id": "task_3",
+      "number": "3",
+      "name": "Решение сложных задач",
+      "part": "B"
+    }
+  ],
+  "mapping": [
+    {
+      "exam_task_id": "task_1",
+      "theme_ids": ["1.1"]
+    },
+    {
+      "exam_task_id": "task_2",
+      "theme_ids": ["1.1", "1.2"]
+    },
+    {
+      "exam_task_id": "task_3",
+      "theme_ids": ["2.1"]
+    }
+  ]
+}
