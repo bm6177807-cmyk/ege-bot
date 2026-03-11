@@ -131,3 +131,12 @@ def premium_required(handler):
                 await event.answer()
             return None
     return wrapper
+
+def get_all_subject_tasks(subj: str) -> list:
+    """Возвращает все задания предмета в виде [(theme_id, task), ...]."""
+    from data import TASKS
+    result = []
+    for theme_id, theme_data in TASKS.get(subj, {}).items():
+        for task in theme_data.get("tasks", []):
+            result.append((theme_id, task))
+    return result

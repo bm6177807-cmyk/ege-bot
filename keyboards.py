@@ -22,43 +22,74 @@ def kb_cancel():
 
 # ========== ПРЕДМЕТЫ И ТЕМЫ ==========
 # Предметы, у которых есть раздел «🧰 Инструменты»
-_TOOL_SUBJECTS = {"math", "physics", "geography", "history", "informatics", "biology"}
+_TOOL_SUBJECTS = {"math", "physics", "geography", "history", "informatics", "biology", "english", "chemistry"}
+
+SUBJECT_DISPLAY = {
+    "chemistry": "Химия 🧪",
+    "biology": "Биология 🌿",
+    "math": "Математика 📐",
+    "physics": "Физика ⚡",
+    "informatics": "Информатика 💻",
+    "history": "История 📜",
+    "geography": "География 🌍",
+    "social": "Обществознание 🏛️",
+    "literature": "Литература 📖",
+    "russian": "Русский язык 🇷🇺",
+    "english": "Английский 🇬🇧",
+}
+
+SUBJECT_NAMES = {
+    "chemistry": "Химия",
+    "biology": "Биология",
+    "math": "Математика",
+    "physics": "Физика",
+    "informatics": "Информатика",
+    "history": "История",
+    "geography": "География",
+    "social": "Обществознание",
+    "literature": "Литература",
+    "russian": "Русский язык",
+    "english": "Английский",
+}
 
 def kb_subjects():
-    display_names = {
-        "chemistry": "Химия 🧪",
-        "biology": "Биология 🌿",
-        "math": "Математика 📐",
-        "physics": "Физика ⚡",
-        "informatics": "Информатика 💻",
-        "history": "История 📜",
-        "geography": "География 🌍",
-        "social": "Обществознание 🏛️",
-        "literature": "Литература 📖",
-        "russian": "Русский язык 🇷🇺"
-    }
     buttons = []
     for subject_key in TASKS.keys():
-        button_text = display_names.get(subject_key, subject_key.capitalize())
+        button_text = SUBJECT_DISPLAY.get(subject_key, subject_key.capitalize())
         buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"subj_{subject_key}")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def kb_subject_menu(subj: str):
-    """Клавиатура меню предмета."""
+    """Двухуровневое меню предмета."""
+    has_tools = subj in _TOOL_SUBJECTS
+    buttons = [
+        [InlineKeyboardButton(text="🧩 Практика", callback_data=f"practice_menu_{subj}")],
+    ]
+    if has_tools:
+        buttons.append([InlineKeyboardButton(text="🧰 Инструменты", callback_data=f"tool_{subj}")])
+    buttons += [
+        [InlineKeyboardButton(text="🎯 Пробник (мини)", callback_data=f"mini_exam_{subj}")],
+        [InlineKeyboardButton(text="📈 Прогресс", callback_data=f"progress_{subj}")],
+        [InlineKeyboardButton(text="❌ Ошибки", callback_data=f"mistakes_{subj}")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def kb_practice_menu(subj: str):
+    """Меню практики (подменю)."""
     buttons = [
         [InlineKeyboardButton(text="🎲 Случайное задание", callback_data=f"subj_random_{subj}")],
+        [InlineKeyboardButton(text="📚 Выбрать тему", callback_data=f"subj_themes_{subj}")],
         [InlineKeyboardButton(text="📝 Экзамен", callback_data=f"subj_exam_{subj}")],
         [InlineKeyboardButton(text="📸 Фото-задание", callback_data=f"subj_photo_{subj}")],
         [InlineKeyboardButton(text="🧪 Тест на уровень", callback_data=f"subj_level_{subj}")],
         [InlineKeyboardButton(text="📋 Шпаргалки", callback_data=f"subj_cheat_{subj}")],
-        [InlineKeyboardButton(text="📚 Выбрать тему", callback_data=f"subj_themes_{subj}")]
+        [InlineKeyboardButton(text="🎯 Ежедневное задание", callback_data=f"daily_{subj}")],
+        [InlineKeyboardButton(text="← Назад", callback_data=f"subj_{subj}")],
     ]
     if subj == "chemistry":
-        buttons.append([InlineKeyboardButton(text="⚗️ Справочник реакций", callback_data=f"subj_reactions_{subj}")])
-        buttons.append([InlineKeyboardButton(text="🧪 Таблица Менделеева", callback_data=f"subj_mendeleev_{subj}")])
-    if subj in _TOOL_SUBJECTS:
-        buttons.append([InlineKeyboardButton(text="🧰 Инструменты", callback_data=f"tool_{subj}")])
-    buttons.append([InlineKeyboardButton(text="🏠 Главное меню", callback_data="back_to_main")])
+        buttons.insert(-1, [InlineKeyboardButton(text="⚗️ Справочник реакций", callback_data=f"subj_reactions_{subj}")])
+        buttons.insert(-1, [InlineKeyboardButton(text="🧪 Таблица Менделеева", callback_data=f"subj_mendeleev_{subj}")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def kb_themes(subj: str):
@@ -69,6 +100,7 @@ def kb_themes(subj: str):
         if len(name) > 40:
             name = name[:40] + "…"
         buttons.append([InlineKeyboardButton(text=name, callback_data=f"theme_{subj}_{theme_id}")])
+    buttons.append([InlineKeyboardButton(text="← Назад", callback_data=f"subj_{subj}")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def kb_theme_menu(user_id: int, subj: str, tid: str):
@@ -157,4 +189,52 @@ def kb_profile_menu():
         [InlineKeyboardButton(text="📉 Анализ слабых тем", callback_data="weak_analysis")],
         [InlineKeyboardButton(text="🌟 Мои подписки", callback_data="my_premiums")],
         [InlineKeyboardButton(text="🎁 Подарить подписку", callback_data="gift_menu")]
+    ])
+
+# ========== ЕЖЕДНЕВНОЕ ЗАДАНИЕ ==========
+def kb_daily_task(subj: str, task_id: str):
+    """Кнопки под ежедневным заданием."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Добавить в ошибки", callback_data=f"daily_mistake_{subj}_{task_id}")],
+        [InlineKeyboardButton(text="⏭ Следующее", callback_data=f"daily_{subj}")],
+        [InlineKeyboardButton(text="← Назад", callback_data=f"subj_{subj}")],
+    ])
+
+# ========== ОШИБКИ ==========
+def kb_mistakes_menu(subj: str, has_mistakes: bool):
+    """Меню раздела ошибок."""
+    buttons = []
+    if has_mistakes:
+        buttons.append([InlineKeyboardButton(text="🔁 Повторить случайную ошибку", callback_data=f"mistakes_review_{subj}")])
+        buttons.append([InlineKeyboardButton(text="📋 Список ошибок", callback_data=f"mistakes_list_{subj}")])
+    else:
+        buttons.append([InlineKeyboardButton(text="✅ Ошибок нет — молодец!", callback_data="noop")])
+    buttons.append([InlineKeyboardButton(text="← Назад", callback_data=f"subj_{subj}")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def kb_mistake_review(subj: str, mistake_id: int):
+    """Кнопки при просмотре одной ошибки."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🗑 Удалить из ошибок", callback_data=f"mistake_delete_{subj}_{mistake_id}")],
+        [InlineKeyboardButton(text="🔁 Следующая ошибка", callback_data=f"mistakes_review_{subj}")],
+        [InlineKeyboardButton(text="← Назад к ошибкам", callback_data=f"mistakes_{subj}")],
+    ])
+
+# ========== ПРОГРЕСС ==========
+def kb_progress_menu(subj: str):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📉 Слабые темы", callback_data=f"progress_weak_{subj}")],
+        [InlineKeyboardButton(text="← Назад", callback_data=f"subj_{subj}")],
+    ])
+
+# ========== МИНИ-ПРОБНИК ==========
+def kb_mini_exam_start(subj: str):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="▶️ Начать (5 вопросов)", callback_data=f"mini_exam_start_{subj}")],
+        [InlineKeyboardButton(text="← Назад", callback_data=f"subj_{subj}")],
+    ])
+
+def kb_mini_exam_next():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➡️ Следующий вопрос", callback_data="mini_exam_next")]
     ])

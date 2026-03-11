@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 
 import database as db
 from data import TASKS
-from keyboards import kb_subjects, kb_subject_menu, kb_themes, kb_theme_menu
+from keyboards import kb_subjects, kb_subject_menu, kb_themes, kb_theme_menu, kb_practice_menu, SUBJECT_NAMES
 from .states import Form
 
 router = Router()
@@ -19,24 +19,34 @@ async def choose_subject(message: Message, state: FSMContext):
 async def process_subject(callback: CallbackQuery, state: FSMContext):
     subj = callback.data.split("_")[1]
     await state.update_data(subject=subj)
-    await callback.message.delete()
-    
-    display_name = {
-        "chemistry": "Химия",
-        "biology": "Биология",
-        "math": "Математика",
-        "physics": "Физика",
-        "informatics": "Информатика",
-        "history": "История",
-        "geography": "География",
-        "social": "Обществознание",
-        "literature": "Литература",
-        "russian": "Русский язык"
-    }.get(subj, subj.capitalize())
-    
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    display_name = SUBJECT_NAMES.get(subj, subj.capitalize())
+
     await callback.message.answer(
         f"🧪 **{display_name}**\n\nВыбери действие:",
         reply_markup=kb_subject_menu(subj),
+        parse_mode="Markdown"
+    )
+    await state.set_state(Form.subject_menu)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("practice_menu_"))
+async def show_practice_menu(callback: CallbackQuery, state: FSMContext):
+    subj = callback.data[len("practice_menu_"):]
+    await state.update_data(subject=subj)
+    display_name = SUBJECT_NAMES.get(subj, subj.capitalize())
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(
+        f"🧩 *{display_name}* — Практика\n\nВыбери режим:",
+        reply_markup=kb_practice_menu(subj),
         parse_mode="Markdown"
     )
     await state.set_state(Form.subject_menu)
@@ -47,18 +57,7 @@ async def go_to_themes(callback: CallbackQuery, state: FSMContext):
     subj = callback.data.split("_")[2]
     await state.update_data(subject=subj)
     await callback.message.delete()
-    display_name = {
-        "chemistry": "Химия",
-        "biology": "Биология",
-        "math": "Математика",
-        "physics": "Физика",
-        "informatics": "Информатика",
-        "history": "История",
-        "geography": "География",
-        "social": "Обществознание",
-        "literature": "Литература",
-        "russian": "Русский язык"
-    }.get(subj, subj.capitalize())
+    display_name = SUBJECT_NAMES.get(subj, subj.capitalize())
     await callback.message.answer(
         f"Предмет: **{display_name}** 🧠\nВыбери тему:", 
         reply_markup=kb_themes(subj), 
@@ -71,18 +70,7 @@ async def go_to_themes(callback: CallbackQuery, state: FSMContext):
 async def back_to_themes(callback: CallbackQuery, state: FSMContext):
     subj = callback.data.split("_")[3]
     await callback.message.delete()
-    display_name = {
-        "chemistry": "Химия",
-        "biology": "Биология",
-        "math": "Математика",
-        "physics": "Физика",
-        "informatics": "Информатика",
-        "history": "История",
-        "geography": "География",
-        "social": "Обществознание",
-        "literature": "Литература",
-        "russian": "Русский язык"
-    }.get(subj, subj.capitalize())
+    display_name = SUBJECT_NAMES.get(subj, subj.capitalize())
     await callback.message.answer(
         f"Предмет: **{display_name}** 🧠\nВыбери тему:", 
         reply_markup=kb_themes(subj), 

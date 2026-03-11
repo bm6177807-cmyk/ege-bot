@@ -24,3 +24,7 @@ class Form(StatesGroup):
     tool_hist_cards = State()  # карточки дат
     tool_info_input = State()  # ввод числа для перевода систем счисления
     tool_bio_input = State()   # ввод генотипов для решётки Пеннета
+    # ─── ежедневное задание ───
+    daily_answering = State()
+    # ─── мини-пробник ───
+    mini_exam_question = State()

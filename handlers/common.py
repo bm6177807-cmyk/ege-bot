@@ -12,21 +12,29 @@ from aiogram.fsm.context import FSMContext
 
 import database as db
 from data import TASKS
-from keyboards import kb_main, kb_cancel, kb_answers
+from keyboards import kb_main, kb_cancel, kb_answers, kb_subjects, kb_profile_menu
 from .states import Form
 from .utils import ai_text, get_video_links
 
 logger = logging.getLogger(__name__)
 router = Router()
 
+
+def _kb_daily_subject_pick():
+    from keyboards import SUBJECT_DISPLAY
+    from data import TASKS
+    buttons = []
+    for subj in TASKS.keys():
+        text = SUBJECT_DISPLAY.get(subj, subj.capitalize())
+        buttons.append([InlineKeyboardButton(text=text, callback_data=f"daily_{subj}")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
-
     user_id = message.from_user.id
     args = message.text.split()
 
-    # Parse referrer or gift from /start <param>
     referrer_id = None
     gift_info = None
     if len(args) > 1:
@@ -47,36 +55,38 @@ async def cmd_start(message: Message, state: FSMContext):
 
     bonus_messages = []
 
-    # Referral bonus: +1 day on all subjects for newcomer
     if referrer_id is not None:
         db.add_referral(referrer_id, user_id)
         for subj in TASKS.keys():
             db.set_subject_premium(user_id, subj, 1)
         bonus_messages.append("✅ Реферальный бонус: +1 день на все предметы!")
 
-    # Legacy gift link processing
     if gift_info:
         subject, days = gift_info
         db.set_subject_premium(user_id, subject, days)
         bonus_messages.append(f"🎁 Подарок: +{days} дней по предмету {subject}!")
 
-    if not user.get('exam_date'):
-        welcome_text = (
-            f"✨ Репетитор ЕГЭ 2026 ✨\n\n"
-            f"Привет, {message.from_user.first_name}! Твой уровень: {user['level']}, опыт: {user['exp']}.\n\n"
-            f"📋 Для начала рекомендую пройти тест на определение уровня.\n"
-            f"Это поможет мне составить персональный план подготовки.\n"
-            f"Нажми кнопку «📸 Разбор по фото» или выбери предмет в меню."
-        )
-    else:
-        welcome_text = (
-            f"✨ Репетитор ЕГЭ 2026 ✨\n\n"
-            f"С возвращением, {message.from_user.first_name}! Твой уровень: {user['level']}, опыт: {user['exp']}.\n"
-            f"Дата экзамена: {user['exam_date']}\n\n"
-            "Выбирай предмет, тему – и вперёд!"
-        )
+    name = message.from_user.first_name
+    welcome_text = (
+        f"👋 Привет, {name}!\n\n"
+        f"Я — твой репетитор ЕГЭ 2026 🎓\n\n"
+        f"✅ Задания по всем предметам\n"
+        f"✅ Ежедневные тренировки\n"
+        f"✅ Разбор ошибок и прогресс\n"
+        f"✅ Шпаргалки и инструменты\n"
+        f"✅ Мини-пробники и экзамены\n\n"
+        f"Уровень: {user['level']} · Опыт: {user['exp']} XP"
+    )
 
-    await message.answer(welcome_text, reply_markup=kb_main())
+    quick_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📚 Выбрать предмет", callback_data="open_subjects")],
+        [InlineKeyboardButton(text="🎯 Ежедневка", callback_data="open_daily_pick"),
+         InlineKeyboardButton(text="👤 Профиль", callback_data="open_profile")],
+        [InlineKeyboardButton(text="⭐ Премиум — 199 ₽/30 дней", callback_data="open_premium")],
+    ])
+
+    await message.answer(welcome_text, reply_markup=quick_kb)
+    await message.answer("Используй кнопки ниже для быстрого доступа:", reply_markup=kb_main())
     for msg in bonus_messages:
         await message.answer(msg)
 
@@ -246,3 +256,52 @@ async def photo_instruction(message: Message, state: FSMContext):
         "**Это премиум-функция.** Если у тебя есть подписка, просто отправь фото.",
         parse_mode="Markdown"
     )
+
+# ========== QUICK-ACTION CALLBACKS (из /start) ==========
+@router.callback_query(F.data == "open_subjects")
+async def cb_open_subjects(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer("Выбери предмет:", reply_markup=kb_subjects())
+    await state.set_state(Form.subject)
+    await callback.answer()
+
+@router.callback_query(F.data == "open_daily_pick")
+async def cb_open_daily_pick(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer(
+        "📅 Ежедневное задание\n\nВыбери предмет для сегодняшней тренировки:",
+        reply_markup=_kb_daily_subject_pick()
+    )
+    await callback.answer()
+
+@router.callback_query(F.data == "open_profile")
+async def cb_open_profile(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer("👤 Профиль:", reply_markup=kb_profile_menu())
+    await callback.answer()
+
+@router.callback_query(F.data == "open_premium")
+async def cb_open_premium(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer(
+        "⭐ *Премиум — 199 ₽/30 дней*\n\n"
+        "Получи доступ ко всем предметам без ограничений:\n"
+        "• Безлимит заданий\n"
+        "• Разбор ошибок\n"
+        "• Фото-задания (OCR + ИИ)\n"
+        "• Генерация заданий\n"
+        "• Мини-пробники\n\n"
+        "Нажми «🌟 Купить премиум» в главном меню.",
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@router.callback_query(F.data == "back_to_main")
+async def cb_back_to_main(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer("🏠 Главное меню", reply_markup=kb_main())
+    await callback.answer()
+
+@router.callback_query(F.data == "noop")
+async def cb_noop(callback: CallbackQuery):
+    await callback.answer()

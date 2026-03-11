@@ -10,6 +10,7 @@ from .geography import TASKS as geography_tasks, VIDEO_LINKS as geography_videos
 from .social import TASKS as social_tasks, VIDEO_LINKS as social_videos
 from .literature import TASKS as literature_tasks, VIDEO_LINKS as literature_videos
 from .russian import TASKS as russian_tasks, VIDEO_LINKS as russian_videos
+from .english import TASKS as english_tasks, VIDEO_LINKS as english_videos
 
 TASKS = {}
 TASKS.update(chemistry_tasks)
@@ -22,6 +23,7 @@ TASKS.update(geography_tasks)
 TASKS.update(social_tasks)
 TASKS.update(literature_tasks)
 TASKS.update(russian_tasks)
+TASKS.update(english_tasks)
 
 VIDEO_LINKS = {}
 VIDEO_LINKS.update(chemistry_videos)
@@ -34,3 +36,4 @@ VIDEO_LINKS.update(geography_videos)
 VIDEO_LINKS.update(social_videos)
 VIDEO_LINKS.update(literature_videos)
 VIDEO_LINKS.update(russian_videos)
+VIDEO_LINKS.update(english_videos)

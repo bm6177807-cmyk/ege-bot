@@ -14,6 +14,10 @@ from .referral import router as referral_router
 from .adaptive import router as adaptive_router
 from .daily_challenge import router as daily_challenge_router
 from .tools import router as tools_router
+from .daily import router as daily_router
+from .mistakes import router as mistakes_router
+from .progress import router as progress_router
+from .mini_exam import router as mini_exam_router
 
 __all__ = [
     "common_router",
@@ -31,4 +35,8 @@ __all__ = [
     "adaptive_router",
     "daily_challenge_router",
     "tools_router",
+    "daily_router",
+    "mistakes_router",
+    "progress_router",
+    "mini_exam_router",
 ]
