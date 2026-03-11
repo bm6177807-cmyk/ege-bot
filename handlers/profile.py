@@ -404,24 +404,55 @@ async def pay_stars(callback: CallbackQuery, state: FSMContext, bot: Bot):
     days = int(days_str)
     name = subject_name(subject)
     stars = STARS_PRICES[days]
-    await bot.send_invoice(
-        chat_id=callback.from_user.id,
-        title=f"Премиум: {name} ({days} дней)",
-        description=f"Доступ к задачам и конспектам по предмету «{name}» на {days} дней.",
-        payload=f"{subject}:{days}",
-        currency="XTR",
-        prices=[LabeledPrice(label=f"{days} дней", amount=stars)],
+
+    logger.info(
+        "Stars: pay_stars clicked user_id=%s subject=%s days=%s stars=%s",
+        callback.from_user.id, subject, days, stars,
     )
+
+    try:
+        await bot.send_invoice(
+            chat_id=callback.from_user.id,
+            title=f"Премиум: {name} ({days} дней)",
+            description=f"Доступ к задачам и конспектам по предмету «{name}» на {days} дней.",
+            payload=f"{subject}:{days}",
+            currency="XTR",
+            prices=[LabeledPrice(label=f"{days} дней", amount=stars)],
+        )
+        logger.info(
+            "Stars: invoice sent user_id=%s subject=%s days=%s stars=%s",
+            callback.from_user.id, subject, days, stars,
+        )
+    except Exception:
+        logger.exception(
+            "Stars: send_invoice failed user_id=%s subject=%s days=%s stars=%s",
+            callback.from_user.id, subject, days, stars,
+        )
+        await callback.message.answer(
+            "❌ Не удалось выставить счёт Telegram Stars.\n"
+            "Попробуй позже или выбери оплату YooMoney."
+        )
+
     await callback.answer()
 
 
 @router.pre_checkout_query()
 async def handle_pre_checkout(pre_checkout_query: PreCheckoutQuery):
+    logger.info(
+        "Stars: pre_checkout_query from=%s payload=%s",
+        pre_checkout_query.from_user.id,
+        pre_checkout_query.invoice_payload,
+    )
     await pre_checkout_query.answer(ok=True)
 
 
 @router.message(F.successful_payment)
 async def handle_successful_payment(message: Message, bot: Bot):
+    logger.info(
+        "Stars: successful_payment from=%s payload=%s",
+        message.from_user.id,
+        message.successful_payment.invoice_payload,
+    )
     payload = message.successful_payment.invoice_payload
     try:
         subject, days_str = payload.split(":")
