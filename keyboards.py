@@ -8,8 +8,9 @@ from data import TASKS
 def kb_main():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="📸 Разбор по фото"), KeyboardButton(text="📚 Предметы")],
-            [KeyboardButton(text="📊 Профиль"), KeyboardButton(text="🌟 Купить премиум")]
+            [KeyboardButton(text="📚 Предметы"), KeyboardButton(text="🎯 Ежедневка")],
+            [KeyboardButton(text="📊 Профиль"), KeyboardButton(text="⭐ Купить премиум")],
+            [KeyboardButton(text="📸 Разбор по фото"), KeyboardButton(text="ℹ️ Помощь")],
         ],
         resize_keyboard=True
     )

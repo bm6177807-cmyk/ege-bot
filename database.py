@@ -237,6 +237,21 @@ def init_db():
         )
     """)
 
+    # Таблица завершённых Telegram Stars платежей (для идемпотентности)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id TEXT UNIQUE,
+            user_id INTEGER,
+            subject TEXT,
+            days INTEGER,
+            provider_charge_id TEXT,
+            telegram_charge_id TEXT UNIQUE,
+            status TEXT DEFAULT 'completed',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -974,3 +989,47 @@ def get_subject_streak(user_id: int, subject: str) -> int:
         else:
             break
     return streak
+
+
+# ===== TELEGRAM STARS PAYMENTS =====
+def save_stars_payment(
+    order_id: str,
+    user_id: int,
+    subject: str,
+    days: int,
+    telegram_charge_id: str,
+    provider_charge_id: str = "",
+) -> bool:
+    """Persist a completed Stars payment.  Returns True if inserted, False if
+    the telegram_charge_id already existed (duplicate / replay)."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO payments
+                (order_id, user_id, subject, days, provider_charge_id, telegram_charge_id, status)
+            VALUES (?, ?, ?, ?, ?, ?, 'completed')
+            """,
+            (order_id, user_id, subject, days, provider_charge_id, telegram_charge_id),
+        )
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        # UNIQUE constraint violation → duplicate payment
+        return False
+    finally:
+        conn.close()
+
+
+def is_stars_payment_exists(telegram_charge_id: str) -> bool:
+    """Return True if this Telegram charge ID has already been processed."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM payments WHERE telegram_charge_id = ?",
+        (telegram_charge_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row is not None

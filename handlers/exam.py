@@ -11,7 +11,7 @@ import database as db
 from data import TASKS
 from keyboards import (
     kb_exam_settings, kb_exam_confirm, kb_subjects,
-    kb_answers, kb_main, kb_profile_menu
+    kb_answers, kb_main, kb_profile_menu, SUBJECT_NAMES
 )
 from .states import Form
 from .utils import ai_text
@@ -47,9 +47,9 @@ async def process_exam_subject(callback: CallbackQuery, state: FSMContext, subj:
         missed_themes=[]
     )
 
-    subject_name = "химии" if subj == "chemistry" else "биологии"
+    subj_display = SUBJECT_NAMES.get(subj, subj.capitalize())
     await callback.message.edit_text(
-        f"🎯 Экзамен: {count} вопросов по {subject_name}.\n\nГотов начать?",
+        f"🎯 Экзамен: {subj_display} — {count} вопросов.\n\nГотов начать?",
         reply_markup=kb_exam_confirm(subj)
     )
     await callback.answer()
