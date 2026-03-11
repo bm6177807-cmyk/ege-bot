@@ -8,33 +8,17 @@ from aiogram.fsm.context import FSMContext
 
 import database as db
 from data import TASKS
-from keyboards import kb_daily_task, kb_answers
+from keyboards import kb_daily_task, kb_answers, SUBJECT_NAMES
 from .states import Form
+from .utils import get_all_subject_tasks
 
 router = Router()
 
-_SUBJECT_NAMES = {
-    "chemistry": "Химия",
-    "biology": "Биология",
-    "math": "Математика",
-    "physics": "Физика",
-    "informatics": "Информатика",
-    "history": "История",
-    "geography": "География",
-    "social": "Обществознание",
-    "literature": "Литература",
-    "russian": "Русский язык",
-    "english": "Английский",
-}
+_SUBJECT_NAMES = SUBJECT_NAMES
 
 def _get_all_tasks(subj: str) -> list:
     """Возвращает все задания предмета из TASKS."""
-    result = []
-    subject_data = TASKS.get(subj, {})
-    for theme_id, theme_data in subject_data.items():
-        for task in theme_data.get("tasks", []):
-            result.append((theme_id, task))
-    return result
+    return get_all_subject_tasks(subj)
 
 @router.callback_query(F.data.startswith("daily_") & ~F.data.startswith("daily_mistake_"))
 async def show_daily_task(callback: CallbackQuery, state: FSMContext):

@@ -6,23 +6,11 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBut
 from aiogram.fsm.context import FSMContext
 
 import database as db
-from keyboards import kb_mistakes_menu, kb_mistake_review
+from keyboards import kb_mistakes_menu, kb_mistake_review, SUBJECT_NAMES
 
 router = Router()
 
-_SUBJECT_NAMES = {
-    "chemistry": "Химия",
-    "biology": "Биология",
-    "math": "Математика",
-    "physics": "Физика",
-    "informatics": "Информатика",
-    "history": "История",
-    "geography": "География",
-    "social": "Обществознание",
-    "literature": "Литература",
-    "russian": "Русский язык",
-    "english": "Английский",
-}
+_SUBJECT_NAMES = SUBJECT_NAMES
 
 
 @router.callback_query(F.data.startswith("mistakes_") & ~F.data.startswith("mistakes_review_") & ~F.data.startswith("mistakes_list_"))

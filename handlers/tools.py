@@ -30,23 +30,13 @@ from data.tools.physics_constants import PHYSICS_CONSTANTS, PHYSICS_UNIT_TABLES
 from data.tools.geo_capitals import GEO_CAPITALS
 from data.tools.history_dates import HISTORY_DATES
 from data.tools.english_words import ENGLISH_WORDS
+from keyboards import SUBJECT_NAMES
 
 router = Router()
 
 # ─────────────────── вспомогательные данные ───────────────────
 
-_SUBJECT_NAMES = {
-    "chemistry": "Химия",
-    "biology": "Биология",
-    "math": "Математика",
-    "physics": "Физика",
-    "informatics": "Информатика",
-    "history": "История",
-    "geography": "География",
-    "social": "Обществознание",
-    "literature": "Литература",
-    "russian": "Русский язык",
-}
+_SUBJECT_NAMES = SUBJECT_NAMES
 
 # Перечень инструментов каждого предмета: (callback_data, текст кнопки)
 SUBJECT_TOOLS: dict[str, list[tuple[str, str]]] = {

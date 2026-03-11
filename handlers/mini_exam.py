@@ -8,34 +8,19 @@ from aiogram.fsm.context import FSMContext
 
 import database as db
 from data import TASKS
-from keyboards import kb_mini_exam_start, kb_mini_exam_next, kb_answers
+from keyboards import kb_mini_exam_start, kb_mini_exam_next, kb_answers, SUBJECT_NAMES
 from .states import Form
+from .utils import get_all_subject_tasks
 
 router = Router()
 
-_SUBJECT_NAMES = {
-    "chemistry": "Химия",
-    "biology": "Биология",
-    "math": "Математика",
-    "physics": "Физика",
-    "informatics": "Информатика",
-    "history": "История",
-    "geography": "География",
-    "social": "Обществознание",
-    "literature": "Литература",
-    "russian": "Русский язык",
-    "english": "Английский",
-}
+_SUBJECT_NAMES = SUBJECT_NAMES
 
 MINI_EXAM_SIZE = 5
 
 
 def _get_all_tasks(subj: str) -> list:
-    result = []
-    for theme_id, theme_data in TASKS.get(subj, {}).items():
-        for task in theme_data.get("tasks", []):
-            result.append((theme_id, task))
-    return result
+    return get_all_subject_tasks(subj)
 
 
 @router.callback_query(F.data.startswith("mini_exam_") & ~F.data.startswith("mini_exam_start_") & ~F.data.startswith("mini_exam_next"))

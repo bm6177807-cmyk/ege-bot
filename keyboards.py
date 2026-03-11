@@ -22,7 +22,7 @@ def kb_cancel():
 
 # ========== ПРЕДМЕТЫ И ТЕМЫ ==========
 # Предметы, у которых есть раздел «🧰 Инструменты»
-_TOOL_SUBJECTS = {"math", "physics", "geography", "history", "informatics", "biology", "english"}
+_TOOL_SUBJECTS = {"math", "physics", "geography", "history", "informatics", "biology", "english", "chemistry"}
 
 SUBJECT_DISPLAY = {
     "chemistry": "Химия 🧪",
@@ -38,6 +38,20 @@ SUBJECT_DISPLAY = {
     "english": "Английский 🇬🇧",
 }
 
+SUBJECT_NAMES = {
+    "chemistry": "Химия",
+    "biology": "Биология",
+    "math": "Математика",
+    "physics": "Физика",
+    "informatics": "Информатика",
+    "history": "История",
+    "geography": "География",
+    "social": "Обществознание",
+    "literature": "Литература",
+    "russian": "Русский язык",
+    "english": "Английский",
+}
+
 def kb_subjects():
     buttons = []
     for subject_key in TASKS.keys():
@@ -47,7 +61,7 @@ def kb_subjects():
 
 def kb_subject_menu(subj: str):
     """Двухуровневое меню предмета."""
-    has_tools = subj in _TOOL_SUBJECTS or subj == "chemistry"
+    has_tools = subj in _TOOL_SUBJECTS
     buttons = [
         [InlineKeyboardButton(text="🧩 Практика", callback_data=f"practice_menu_{subj}")],
     ]

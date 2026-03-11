@@ -6,23 +6,11 @@ from aiogram.fsm.context import FSMContext
 
 import database as db
 from data import TASKS
-from keyboards import kb_progress_menu
+from keyboards import kb_progress_menu, SUBJECT_NAMES
 
 router = Router()
 
-_SUBJECT_NAMES = {
-    "chemistry": "Химия",
-    "biology": "Биология",
-    "math": "Математика",
-    "physics": "Физика",
-    "informatics": "Информатика",
-    "history": "История",
-    "geography": "География",
-    "social": "Обществознание",
-    "literature": "Литература",
-    "russian": "Русский язык",
-    "english": "Английский",
-}
+_SUBJECT_NAMES = SUBJECT_NAMES
 
 
 @router.callback_query(F.data.startswith("progress_") & ~F.data.startswith("progress_weak_"))
