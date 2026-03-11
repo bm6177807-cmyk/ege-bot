@@ -90,6 +90,7 @@ async def profile_menu(message: Message, state: FSMContext):
         [InlineKeyboardButton(text="🌟 Мои подписки", callback_data="my_premiums")],
         [InlineKeyboardButton(text="🎁 Подарить подписку", callback_data="gift_menu")],
         [InlineKeyboardButton(text="📨 Пригласить друга", callback_data="referral_link")],
+        [InlineKeyboardButton(text="🔔 Настройка новостей", callback_data="news_settings")],
     ])
     await message.answer("Твой профиль:", reply_markup=kb)
 
@@ -544,3 +545,39 @@ async def back_to_profile(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await profile_menu(callback.message, state)
     await callback.answer()
+
+# ========== НАСТРОЙКА НОВОСТЕЙ ==========
+def _news_text_and_kb(opt_in: bool):
+    """Возвращает текст и клавиатуру для экрана настройки новостей."""
+    status = "🔔 Вкл" if opt_in else "🔕 Выкл"
+    toggle_label = "🔕 Отключить новости" if opt_in else "🔔 Включить новости"
+    text = (
+        "📢 Настройка уведомлений о новостях\n\n"
+        f"Текущий статус: {status}\n\n"
+        "Если новости включены, ты будешь получать объявления об обновлениях и новых функциях бота."
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=toggle_label, callback_data="news_toggle")],
+        [InlineKeyboardButton(text="🔙 Назад в профиль", callback_data="back_to_profile")],
+    ])
+    return text, kb
+
+
+@router.callback_query(F.data == "news_settings")
+async def news_settings(callback: CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    opt_in = db.get_news_opt_in(user_id)
+    text, kb = _news_text_and_kb(opt_in)
+    await callback.message.edit_text(text, reply_markup=kb)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "news_toggle")
+async def news_toggle(callback: CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    new_val = not db.get_news_opt_in(user_id)
+    db.set_news_opt_in(user_id, new_val)
+    confirm = "✅ Новости включены." if new_val else "✅ Новости отключены."
+    text, kb = _news_text_and_kb(new_val)
+    await callback.message.edit_text(text, reply_markup=kb)
+    await callback.answer(confirm)

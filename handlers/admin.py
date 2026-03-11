@@ -4,14 +4,36 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from datetime import datetime, timedelta
+import asyncio
+import logging
 import os
+import sqlite3
+import time
 
 import database as db
 from .states import Form
 from keyboards import kb_cancel, kb_main
 
+logger = logging.getLogger(__name__)
+
 router = Router()
 ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
+
+# Поддержка единственного ADMIN_TG_USER_ID (приоритет над ADMIN_IDS)
+_single_admin = os.getenv("ADMIN_TG_USER_ID", "").strip()
+if _single_admin:
+    try:
+        _single_admin_id = int(_single_admin)
+        if _single_admin_id not in ADMIN_IDS:
+            ADMIN_IDS.append(_single_admin_id)
+    except ValueError:
+        logger.warning("ADMIN_TG_USER_ID задан некорректно — рассылка отключена.")
+
+if not ADMIN_IDS:
+    logger.warning("Ни ADMIN_IDS, ни ADMIN_TG_USER_ID не заданы — команды рассылки отключены.")
+
+# Лимит Telegram: не более 30 сообщений/сек в разные чаты (с запасом берём 20)
+_BROADCAST_RATE = 20  # сообщений в секунду
 
 @router.message(Command("givepremium"))
 async def cmd_give_premium(message: Message, state: FSMContext):
@@ -144,3 +166,83 @@ async def cmd_gift_premium(message: Message, state: FSMContext):
         return
     expires = db.gift_subject_premium(message.from_user.id, to_user, subject, days)
     await message.answer(f"✅ Подарок отправлен пользователю {to_user} на {days} дней по предмету {subject} (до {expires})")
+
+# ========== КОМАНДЫ РАССЫЛКИ ==========
+
+async def _do_broadcast(message: Message, text: str, opt_in_only: bool):
+    """Внутренняя функция рассылки с rate limiting и обработкой ошибок."""
+    user_ids = db.get_all_user_ids(opt_in_only=opt_in_only)
+    total = len(user_ids)
+    sent = 0
+    failed = 0
+    start_ts = time.monotonic()
+
+    await message.answer(
+        f"📢 Начинаю рассылку...\n"
+        f"Получателей: {total} {'(подписанных на новости)' if opt_in_only else '(все пользователи)'}"
+    )
+
+    for i, uid in enumerate(user_ids):
+        try:
+            await message.bot.send_message(uid, text)
+            sent += 1
+        except Exception as exc:
+            failed += 1
+            err_str = str(exc).lower()
+            if "blocked" in err_str or "chat not found" in err_str or "deactivated" in err_str:
+                logger.info("Broadcast: пользователь %s недоступен (%s)", uid, exc)
+            else:
+                logger.warning("Broadcast: ошибка отправки %s: %s", uid, exc)
+
+        # Rate limiting: пауза после каждого _BROADCAST_RATE сообщения
+        if (i + 1) % _BROADCAST_RATE == 0:
+            await asyncio.sleep(1)
+
+    elapsed = time.monotonic() - start_ts
+    await message.answer(
+        f"✅ Рассылка завершена!\n\n"
+        f"📊 Статистика:\n"
+        f"• Целевых пользователей: {total}\n"
+        f"• Отправлено успешно: {sent}\n"
+        f"• Не доставлено: {failed}\n"
+        f"• Время: {elapsed:.1f} сек"
+    )
+
+
+@router.message(Command("broadcast"))
+async def cmd_broadcast(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    if user_id not in ADMIN_IDS:
+        await message.answer("⛔ У вас нет прав на выполнение этой команды.")
+        return
+
+    # /broadcast <сообщение>
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer(
+            "❌ Использование: /broadcast <текст>\n"
+            "Сообщение будет отправлено всем пользователям с включёнными новостями."
+        )
+        return
+
+    broadcast_text = parts[1].strip()
+    await _do_broadcast(message, broadcast_text, opt_in_only=True)
+
+
+@router.message(Command("broadcast_all"))
+async def cmd_broadcast_all(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    if user_id not in ADMIN_IDS:
+        await message.answer("⛔ У вас нет прав на выполнение этой команды.")
+        return
+
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer(
+            "❌ Использование: /broadcast_all <текст>\n"
+            "Сообщение будет отправлено ВСЕМ пользователям (независимо от настроек новостей)."
+        )
+        return
+
+    broadcast_text = parts[1].strip()
+    await _do_broadcast(message, broadcast_text, opt_in_only=False)

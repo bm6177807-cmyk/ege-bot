@@ -34,7 +34,12 @@ def init_db():
         cur.execute("SELECT user_level FROM users LIMIT 1")
     except sqlite3.OperationalError:
         cur.execute("ALTER TABLE users ADD COLUMN user_level TEXT DEFAULT 'beginner'")
-    
+
+    try:
+        cur.execute("SELECT news_opt_in FROM users LIMIT 1")
+    except sqlite3.OperationalError:
+        cur.execute("ALTER TABLE users ADD COLUMN news_opt_in INTEGER DEFAULT 1")
+
     # Таблица заданий
     cur.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
@@ -1156,3 +1161,44 @@ def get_exam_task_theme_map(subject: str):
     for exam_task_id, theme_id in rows:
         result.setdefault(exam_task_id, []).append(theme_id)
     return result
+
+
+# ---------- Новостные рассылки ----------
+
+def get_all_user_ids(opt_in_only: bool = True) -> list[int]:
+    """Возвращает список user_id всех пользователей.
+    Если opt_in_only=True — только тех, у кого news_opt_in=1.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    if opt_in_only:
+        cur.execute("SELECT user_id FROM users WHERE news_opt_in = 1")
+    else:
+        cur.execute("SELECT user_id FROM users")
+    rows = cur.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def set_news_opt_in(user_id: int, enabled: bool):
+    """Устанавливает флаг подписки на новости для пользователя."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET news_opt_in = ? WHERE user_id = ?",
+        (1 if enabled else 0, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_news_opt_in(user_id: int) -> bool:
+    """Возвращает True, если пользователь подписан на новости."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT news_opt_in FROM users WHERE user_id = ?", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    if row is None:
+        return True  # новый пользователь — включено по умолчанию
+    return bool(row[0])

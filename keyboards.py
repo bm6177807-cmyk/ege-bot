@@ -189,7 +189,9 @@ def kb_profile_menu():
         [InlineKeyboardButton(text="🔮 Прогноз баллов", callback_data="predict_score")],
         [InlineKeyboardButton(text="📉 Анализ слабых тем", callback_data="weak_analysis")],
         [InlineKeyboardButton(text="🌟 Мои подписки", callback_data="my_premiums")],
-        [InlineKeyboardButton(text="🎁 Подарить подписку", callback_data="gift_menu")]
+        [InlineKeyboardButton(text="🎁 Подарить подписку", callback_data="gift_menu")],
+        [InlineKeyboardButton(text="📨 Пригласить друга", callback_data="referral_link")],
+        [InlineKeyboardButton(text="🔔 Настройка новостей", callback_data="news_settings")],
     ])
 
 # ========== ЕЖЕДНЕВНОЕ ЗАДАНИЕ ==========
