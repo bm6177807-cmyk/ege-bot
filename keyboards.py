@@ -81,6 +81,7 @@ def kb_practice_menu(subj: str):
     buttons = [
         [InlineKeyboardButton(text="🎲 Случайное задание", callback_data=f"subj_random_{subj}")],
         [InlineKeyboardButton(text="📚 Выбрать тему", callback_data=f"subj_themes_{subj}")],
+        [InlineKeyboardButton(text="🔢 Номера заданий", callback_data=f"open_exam_numbers_{subj}")],
         [InlineKeyboardButton(text="📝 Экзамен", callback_data=f"subj_exam_{subj}")],
         [InlineKeyboardButton(text="📸 Фото-задание", callback_data=f"subj_photo_{subj}")],
         [InlineKeyboardButton(text="🧪 Тест на уровень", callback_data=f"subj_level_{subj}")],
@@ -238,4 +239,33 @@ def kb_mini_exam_start(subj: str):
 def kb_mini_exam_next():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➡️ Следующий вопрос", callback_data="mini_exam_next")]
+    ])
+
+
+# ========== НОМЕРА ЗАДАНИЙ ЕГЭ ==========
+def kb_exam_numbers(subj: str, exam_tasks: list):
+    """Сетка номеров заданий ЕГЭ для предмета."""
+    buttons = []
+    row = []
+    for task in exam_tasks:
+        number = task["number"]
+        exam_task_id = task["exam_task_id"]
+        row.append(InlineKeyboardButton(
+            text=f"№{number}",
+            callback_data=f"examnum_{subj}_{exam_task_id}"
+        ))
+        if len(row) == 5:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+    buttons.append([InlineKeyboardButton(text="← Назад", callback_data=f"practice_menu_{subj}")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def kb_after_exam_number_answer(subj: str, exam_task_id: str):
+    """Кнопки после ответа в режиме «по номеру задания»."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➡️ Ещё по этому номеру", callback_data=f"examnum_{subj}_{exam_task_id}")],
+        [InlineKeyboardButton(text="← К номерам заданий", callback_data=f"open_exam_numbers_{subj}")],
     ])

@@ -1,0 +1,381 @@
+{
+  "version": 1,
+  "subject": "social",
+  "subject_name": "Обществознание",
+  "themes": [
+    {
+      "id": "S1",
+      "name": "Человек и общество",
+      "parent_id": null
+    },
+    {
+      "id": "S1.1",
+      "name": "Природа человека, врождённое и приобретённое",
+      "parent_id": "S1"
+    },
+    {
+      "id": "S1.2",
+      "name": "Общество как система, сферы общественной жизни",
+      "parent_id": "S1"
+    },
+    {
+      "id": "S1.3",
+      "name": "Общественный прогресс, глобальные проблемы",
+      "parent_id": "S1"
+    },
+    {
+      "id": "S2",
+      "name": "Духовная культура",
+      "parent_id": null
+    },
+    {
+      "id": "S2.1",
+      "name": "Культура и её формы, массовая и элитарная культура",
+      "parent_id": "S2"
+    },
+    {
+      "id": "S2.2",
+      "name": "Наука. Образование",
+      "parent_id": "S2"
+    },
+    {
+      "id": "S2.3",
+      "name": "Религия. Мораль. Искусство",
+      "parent_id": "S2"
+    },
+    {
+      "id": "S3",
+      "name": "Социальные отношения",
+      "parent_id": null
+    },
+    {
+      "id": "S3.1",
+      "name": "Социальная структура, стратификация, мобильность",
+      "parent_id": "S3"
+    },
+    {
+      "id": "S3.2",
+      "name": "Семья и брак. Молодёжь как социальная группа",
+      "parent_id": "S3"
+    },
+    {
+      "id": "S3.3",
+      "name": "Этнос, нация, межнациональные отношения",
+      "parent_id": "S3"
+    },
+    {
+      "id": "S4",
+      "name": "Политика",
+      "parent_id": null
+    },
+    {
+      "id": "S4.1",
+      "name": "Политическая система. Государство и его функции",
+      "parent_id": "S4"
+    },
+    {
+      "id": "S4.2",
+      "name": "Демократия. Гражданское общество и правовое государство",
+      "parent_id": "S4"
+    },
+    {
+      "id": "S4.3",
+      "name": "Политические партии и движения. Избирательный процесс",
+      "parent_id": "S4"
+    },
+    {
+      "id": "S5",
+      "name": "Право",
+      "parent_id": null
+    },
+    {
+      "id": "S5.1",
+      "name": "Конституция РФ. Права и свободы человека и гражданина",
+      "parent_id": "S5"
+    },
+    {
+      "id": "S5.2",
+      "name": "Отрасли российского права",
+      "parent_id": "S5"
+    },
+    {
+      "id": "S5.3",
+      "name": "Правонарушение и юридическая ответственность",
+      "parent_id": "S5"
+    },
+    {
+      "id": "S6",
+      "name": "Экономика",
+      "parent_id": null
+    },
+    {
+      "id": "S6.1",
+      "name": "Рыночная экономика. Спрос и предложение",
+      "parent_id": "S6"
+    },
+    {
+      "id": "S6.2",
+      "name": "Макроэкономика. Государство и экономика",
+      "parent_id": "S6"
+    },
+    {
+      "id": "S6.3",
+      "name": "Финансы. Банки. Налоги",
+      "parent_id": "S6"
+    }
+  ],
+  "exam_tasks": [
+    {
+      "id": "SOC01",
+      "number": "1",
+      "name": "Систематизация (любой раздел)",
+      "part": null
+    },
+    {
+      "id": "SOC02",
+      "number": "2",
+      "name": "Человек и общество",
+      "part": null
+    },
+    {
+      "id": "SOC03",
+      "number": "3",
+      "name": "Человек и общество",
+      "part": null
+    },
+    {
+      "id": "SOC04",
+      "number": "4",
+      "name": "Человек и общество",
+      "part": null
+    },
+    {
+      "id": "SOC05",
+      "number": "5",
+      "name": "Духовная культура",
+      "part": null
+    },
+    {
+      "id": "SOC06",
+      "number": "6",
+      "name": "Духовная культура",
+      "part": null
+    },
+    {
+      "id": "SOC07",
+      "number": "7",
+      "name": "Духовная культура",
+      "part": null
+    },
+    {
+      "id": "SOC08",
+      "number": "8",
+      "name": "Социальные отношения",
+      "part": null
+    },
+    {
+      "id": "SOC09",
+      "number": "9",
+      "name": "Социальные отношения",
+      "part": null
+    },
+    {
+      "id": "SOC10",
+      "number": "10",
+      "name": "Политика",
+      "part": null
+    },
+    {
+      "id": "SOC11",
+      "number": "11",
+      "name": "Политика",
+      "part": null
+    },
+    {
+      "id": "SOC12",
+      "number": "12",
+      "name": "Право",
+      "part": null
+    },
+    {
+      "id": "SOC13",
+      "number": "13",
+      "name": "Политика",
+      "part": null
+    },
+    {
+      "id": "SOC14",
+      "number": "14",
+      "name": "Право",
+      "part": null
+    },
+    {
+      "id": "SOC15",
+      "number": "15",
+      "name": "Право",
+      "part": null
+    },
+    {
+      "id": "SOC16",
+      "number": "16",
+      "name": "Право",
+      "part": null
+    },
+    {
+      "id": "SOC17",
+      "number": "17",
+      "name": "Развёрнутый ответ (любой раздел)",
+      "part": null
+    },
+    {
+      "id": "SOC18",
+      "number": "18",
+      "name": "Развёрнутый ответ (любой раздел)",
+      "part": null
+    },
+    {
+      "id": "SOC19",
+      "number": "19",
+      "name": "Развёрнутый ответ (любой раздел)",
+      "part": null
+    },
+    {
+      "id": "SOC20",
+      "number": "20",
+      "name": "Развёрнутый ответ (любой раздел)",
+      "part": null
+    },
+    {
+      "id": "SOC21",
+      "number": "21",
+      "name": "Экономика",
+      "part": null
+    },
+    {
+      "id": "SOC22",
+      "number": "22",
+      "name": "Развёрнутый ответ (любой раздел)",
+      "part": null
+    },
+    {
+      "id": "SOC23",
+      "number": "23",
+      "name": "Конституция и право",
+      "part": null
+    },
+    {
+      "id": "SOC24",
+      "number": "24",
+      "name": "Развёрнутый ответ (любой раздел)",
+      "part": null
+    },
+    {
+      "id": "SOC25",
+      "number": "25",
+      "name": "Развёрнутый ответ (любой раздел)",
+      "part": null
+    }
+  ],
+  "mapping": [
+    {
+      "exam_task_id": "SOC01",
+      "theme_ids": ["S1", "S2", "S3", "S4", "S5", "S6"]
+    },
+    {
+      "exam_task_id": "SOC02",
+      "theme_ids": ["S1.1", "S1.2", "S1.3"]
+    },
+    {
+      "exam_task_id": "SOC03",
+      "theme_ids": ["S1.1", "S1.2", "S1.3"]
+    },
+    {
+      "exam_task_id": "SOC04",
+      "theme_ids": ["S1.1", "S1.2", "S1.3"]
+    },
+    {
+      "exam_task_id": "SOC05",
+      "theme_ids": ["S2.1", "S2.2", "S2.3"]
+    },
+    {
+      "exam_task_id": "SOC06",
+      "theme_ids": ["S2.1", "S2.2", "S2.3"]
+    },
+    {
+      "exam_task_id": "SOC07",
+      "theme_ids": ["S2.1", "S2.2", "S2.3"]
+    },
+    {
+      "exam_task_id": "SOC08",
+      "theme_ids": ["S3.1", "S3.2", "S3.3"]
+    },
+    {
+      "exam_task_id": "SOC09",
+      "theme_ids": ["S3.1", "S3.2", "S3.3"]
+    },
+    {
+      "exam_task_id": "SOC10",
+      "theme_ids": ["S4.1", "S4.2", "S4.3"]
+    },
+    {
+      "exam_task_id": "SOC11",
+      "theme_ids": ["S4.1", "S4.2", "S4.3"]
+    },
+    {
+      "exam_task_id": "SOC12",
+      "theme_ids": ["S5.1", "S5.2", "S5.3"]
+    },
+    {
+      "exam_task_id": "SOC13",
+      "theme_ids": ["S4.1", "S4.2", "S4.3"]
+    },
+    {
+      "exam_task_id": "SOC14",
+      "theme_ids": ["S5.1", "S5.2", "S5.3"]
+    },
+    {
+      "exam_task_id": "SOC15",
+      "theme_ids": ["S5.1", "S5.2", "S5.3"]
+    },
+    {
+      "exam_task_id": "SOC16",
+      "theme_ids": ["S5.1", "S5.2", "S5.3"]
+    },
+    {
+      "exam_task_id": "SOC17",
+      "theme_ids": ["S1", "S2", "S3", "S4", "S5", "S6"]
+    },
+    {
+      "exam_task_id": "SOC18",
+      "theme_ids": ["S1", "S2", "S3", "S4", "S5", "S6"]
+    },
+    {
+      "exam_task_id": "SOC19",
+      "theme_ids": ["S1", "S2", "S3", "S4", "S5", "S6"]
+    },
+    {
+      "exam_task_id": "SOC20",
+      "theme_ids": ["S1", "S2", "S3", "S4", "S5", "S6"]
+    },
+    {
+      "exam_task_id": "SOC21",
+      "theme_ids": ["S6.1", "S6.2", "S6.3"]
+    },
+    {
+      "exam_task_id": "SOC22",
+      "theme_ids": ["S1", "S2", "S3", "S4", "S5", "S6"]
+    },
+    {
+      "exam_task_id": "SOC23",
+      "theme_ids": ["S5.1", "S5.2", "S5.3"]
+    },
+    {
+      "exam_task_id": "SOC24",
+      "theme_ids": ["S1", "S2", "S3", "S4", "S5", "S6"]
+    },
+    {
+      "exam_task_id": "SOC25",
+      "theme_ids": ["S1", "S2", "S3", "S4", "S5", "S6"]
+    }
+  ]
+}

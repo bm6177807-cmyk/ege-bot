@@ -1156,3 +1156,16 @@ def get_exam_task_theme_map(subject: str):
     for exam_task_id, theme_id in rows:
         result.setdefault(exam_task_id, []).append(theme_id)
     return result
+
+
+def get_exam_task_theme_ids(subject: str, exam_task_id: str) -> list:
+    """Return the list of theme_ids mapped to a specific exam task."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT theme_id FROM exam_task_theme_map WHERE subject = ? AND exam_task_id = ? ORDER BY theme_id",
+        (subject, exam_task_id),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return [r[0] for r in rows]

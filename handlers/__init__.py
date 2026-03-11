@@ -18,6 +18,7 @@ from .daily import router as daily_router
 from .mistakes import router as mistakes_router
 from .progress import router as progress_router
 from .mini_exam import router as mini_exam_router
+from .exam_numbers import router as exam_numbers_router
 
 __all__ = [
     "common_router",
@@ -39,4 +40,5 @@ __all__ = [
     "mistakes_router",
     "progress_router",
     "mini_exam_router",
+    "exam_numbers_router",
 ]
