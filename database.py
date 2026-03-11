@@ -212,6 +212,31 @@ def init_db():
         )
     """)
     
+    # Таблица ошибок по предметам
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS subject_mistakes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            subject TEXT,
+            task_id TEXT,
+            task_text TEXT,
+            correct_answer TEXT,
+            explanation TEXT,
+            created_at DATE DEFAULT CURRENT_DATE
+        )
+    """)
+
+    # Таблица ежедневных заданий по предметам
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS subject_daily (
+            user_id INTEGER,
+            subject TEXT,
+            date DATE,
+            task_id TEXT,
+            PRIMARY KEY (user_id, subject, date)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -837,3 +862,115 @@ def has_premium(user_id):
         if expires < datetime.now().date():
             return False
     return True
+
+
+# ===== ОШИБКИ ПО ПРЕДМЕТАМ =====
+def add_subject_mistake(user_id: int, subject: str, task_id: str, task_text: str, correct_answer: str, explanation: str = ""):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM subject_mistakes WHERE user_id=? AND task_id=?", (user_id, task_id))
+    if cur.fetchone() is None:
+        cur.execute("""
+            INSERT INTO subject_mistakes (user_id, subject, task_id, task_text, correct_answer, explanation)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, subject, task_id, task_text, correct_answer, explanation))
+        conn.commit()
+    conn.close()
+
+def get_subject_mistakes(user_id: int, subject: str) -> list:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, task_id, task_text, correct_answer, explanation, created_at
+        FROM subject_mistakes WHERE user_id=? AND subject=?
+        ORDER BY created_at DESC
+    """, (user_id, subject))
+    rows = cur.fetchall()
+    conn.close()
+    return [{"id": r[0], "task_id": r[1], "task_text": r[2], "correct_answer": r[3], "explanation": r[4], "created_at": r[5]} for r in rows]
+
+def remove_subject_mistake(user_id: int, mistake_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM subject_mistakes WHERE id=? AND user_id=?", (mistake_id, user_id))
+    conn.commit()
+    conn.close()
+
+def count_subject_mistakes(user_id: int, subject: str) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM subject_mistakes WHERE user_id=? AND subject=?", (user_id, subject))
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+# ===== ЕЖЕДНЕВНЫЕ ЗАДАНИЯ ПО ПРЕДМЕТАМ =====
+def get_subject_daily_task(user_id: int, subject: str, date: str) -> str | None:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT task_id FROM subject_daily WHERE user_id=? AND subject=? AND date=?", (user_id, subject, date))
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+def set_subject_daily_task(user_id: int, subject: str, date: str, task_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT OR REPLACE INTO subject_daily (user_id, subject, date, task_id) VALUES (?, ?, ?, ?)
+    """, (user_id, subject, date, task_id))
+    conn.commit()
+    conn.close()
+
+# ===== ПРОГРЕСС ПО ПРЕДМЕТУ =====
+def get_subject_progress(user_id: int, subject: str) -> dict:
+    """Возвращает общий прогресс по предмету."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT SUM(total), SUM(correct) FROM theme_stats
+        WHERE user_id=? AND subject=?
+    """, (user_id, subject))
+    row = cur.fetchone()
+    conn.close()
+    total = row[0] or 0
+    correct = row[1] or 0
+    return {"total": total, "correct": correct, "wrong": total - correct}
+
+def get_subject_weak_themes(user_id: int, subject: str, limit: int = 3) -> list:
+    """Возвращает слабые темы по предмету (наибольший процент ошибок)."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT theme_id, total, correct FROM theme_stats
+        WHERE user_id=? AND subject=? AND total >= 3
+        ORDER BY (CAST(correct AS REAL)/total) ASC
+        LIMIT ?
+    """, (user_id, subject, limit))
+    rows = cur.fetchall()
+    conn.close()
+    return [{"theme_id": r[0], "total": r[1], "correct": r[2]} for r in rows]
+
+def get_subject_streak(user_id: int, subject: str) -> int:
+    """Считает стрик (дней подряд) ежедневных заданий по предмету."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT DISTINCT date FROM subject_daily
+        WHERE user_id=? AND subject=?
+        ORDER BY date DESC
+    """, (user_id, subject))
+    rows = cur.fetchall()
+    conn.close()
+    if not rows:
+        return 0
+    from datetime import date as date_type, timedelta
+    streak = 0
+    today = date_type.today()
+    for i, (d,) in enumerate(rows):
+        expected = (today - timedelta(days=i)).isoformat()
+        if d == expected:
+            streak += 1
+        else:
+            break
+    return streak

@@ -7,6 +7,7 @@
   history     — карточки дат (история России / мировая история)
   informatics — перевод чисел между системами счисления (2 / 8 / 10 / 16)
   biology     — вычисление решётки Пеннета
+  english     — SRS-тренажёр слов для ЕГЭ
 """
 
 import random
@@ -28,6 +29,7 @@ from data.tools.math_formulas import MATH_FORMULA_CATEGORIES
 from data.tools.physics_constants import PHYSICS_CONSTANTS, PHYSICS_UNIT_TABLES
 from data.tools.geo_capitals import GEO_CAPITALS
 from data.tools.history_dates import HISTORY_DATES
+from data.tools.english_words import ENGLISH_WORDS
 
 router = Router()
 
@@ -67,6 +69,9 @@ SUBJECT_TOOLS: dict[str, list[tuple[str, str]]] = {
     "biology": [
         ("tool_bio_genetics", "🧬 Решётка Пеннета"),
     ],
+    "english": [
+        ("tool_eng_words", "📖 Слова для ЕГЭ (SRS)"),
+    ],
 }
 
 # Все предметы, у которых есть инструменты
@@ -77,7 +82,7 @@ TOOL_SUBJECTS = set(SUBJECT_TOOLS.keys())
 
 @router.callback_query(F.data.in_(
     {"tool_math", "tool_physics", "tool_geography",
-     "tool_history", "tool_informatics", "tool_biology"}
+     "tool_history", "tool_informatics", "tool_biology", "tool_english"}
 ))
 async def show_tools_menu(callback: CallbackQuery, state: FSMContext) -> None:
     subj = callback.data[len("tool_"):]
@@ -812,3 +817,46 @@ async def bio_genetics_process(message: Message, state: FSMContext) -> None:
     await message.answer(
         _format_punnett(result), reply_markup=kb, parse_mode="Markdown"
     )
+
+
+# ═══════════════════════════════════════════════════════════════
+#  АНГЛИЙСКИЙ — SRS СЛОВА
+# ═══════════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "tool_eng_words")
+async def eng_words_menu(callback: CallbackQuery, state: FSMContext) -> None:
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(
+        "📖 *Слова для ЕГЭ — тренажёр*\n\n"
+        f"В базе {len(ENGLISH_WORDS)} слов.\n"
+        "Нажми «Следующее слово», чтобы начать:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="▶️ Следующее слово", callback_data="tool_eng_next")],
+            [InlineKeyboardButton(text="← Назад", callback_data="tool_english")],
+        ]),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "tool_eng_next")
+async def eng_word_next(callback: CallbackQuery, state: FSMContext) -> None:
+    word, translation, hint = random.choice(ENGLISH_WORDS)
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(
+        f"📖 *{word}*\n\n"
+        f"🇷🇺 {translation}\n"
+        f"💡 _{hint}_",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="▶️ Следующее слово", callback_data="tool_eng_next")],
+            [InlineKeyboardButton(text="← К списку инструментов", callback_data="tool_english")],
+        ]),
+        parse_mode="Markdown",
+    )
+    await callback.answer()
